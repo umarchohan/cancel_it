@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cancel It</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <section class="popup-panel">
+        <div class="popup-head">
+          <img src="icons/icon48.png" alt="Cancel It logo">
+          <div>
+            <p class="popup-kicker">Cancel It</p>
+            <h1>Quick controls</h1>
+          </div>
+        </div>
+
+        <label class="popup-toggle">
+          <span>
+            <strong>Filtering enabled</strong>
+            <small id="site-status">Checking this site...</small>
+          </span>
+          <input id="popup-enabled" type="checkbox">
+        </label>
+
+        <label class="popup-field">
+          <span>Default mode</span>
+          <select id="popup-mode">
+            <option value="blur">Blur references</option>
+            <option value="hide">Hide references</option>
+            <option value="placeholder">Use placeholder</option>
+            <option value="page-blur">Blur entire page</option>
+          </select>
+        </label>
+
+        <label class="popup-field">
+          <span>Match scope</span>
+          <select id="popup-scope">
+            <option value="inline">Inline only</option>
+            <option value="block">Whole block</option>
+          </select>
+        </label>
+
+        <div class="popup-actions">
+          <button id="save-popup" type="button">Save</button>
+          <button id="open-options" type="button" class="ghost">Open full settings</button>
+        </div>
+        <section id="popup-lock-screen" class="popup-lock hidden">
+          <p class="popup-kicker">Locked</p>
+          <h2>Enter parent PIN</h2>
+          <input id="popup-unlock-pin" type="password" placeholder="PIN" inputmode="numeric">
+          <div class="popup-actions">
+            <button id="popup-unlock" type="button">Unlock</button>
+            <p id="popup-lock-status" class="popup-status"></p>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="firebase-config.js"></script>
+    <script src="analytics.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

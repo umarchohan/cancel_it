@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cancel It QA Fixture</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+        background: linear-gradient(180deg, #f7f7fb, #ececf6);
+        color: #171717;
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 12px;
+      }
+
+      p {
+        margin: 0 0 10px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 24px;
+      }
+
+      .panel {
+        background: #ffffff;
+        border: 1px solid #d9dce8;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 20px 40px rgba(23, 23, 23, 0.06);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+
+      article.card,
+      a.media-card {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid #d5d8e4;
+        background: #fdfdff;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .media-card img {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #cfd8ff, #fbd4e0);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #eef1ff;
+        color: #2b3357;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .muted {
+        color: #59607a;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stack">
+      <section class="panel" id="hero">
+        <span class="badge">Fixture</span>
+        <h1>Cancel It QA Fixture</h1>
+        <p class="muted">
+          This page intentionally contains multiple blocked-term candidates for mode,
+          pack, site-rule, and relock testing.
+        </p>
+      </section>
+
+      <section class="panel" id="inline-text">
+        <h2>Inline text references</h2>
+        <p id="celebrity-inline">
+          Jennifer Lopez is the headline celebrity reference used for blur, hide,
+          placeholder, and page-level tests.
+        </p>
+        <p id="politics-inline">
+          Politics fixture: the election campaign reached the senate and congress.
+        </p>
+        <p id="crypto-inline">
+          Crypto fixture: bitcoin, ethereum, solana, and nft chatter all appear here.
+        </p>
+        <p id="sports-inline">
+          Sports fixture: the final score, game recap, and spoiler chatter live here.
+        </p>
+        <p id="adult-inline">
+          Adult fixture: porn, pornography, nsfw, and explicit content appear here.
+        </p>
+        <p id="family-inline">
+          Family-safe fixture: gore, violent language, and adult content appear here.
+        </p>
+        <p id="ragebait-inline">
+          Ragebait fixture: you won't believe this meltdown, destroyed take, and viral outrage.
+        </p>
+      </section>
+
+      <section class="panel" id="cards">
+        <h2>Card and post fixtures</h2>
+        <div class="cards">
+          <article class="card" id="card-celebrity">
+            <h3>Celebrity post</h3>
+            <p>
+              Jennifer Lopez appears inside this card so whole-block hide can remove
+              the entire article.
+            </p>
+          </article>
+
+          <article class="card" id="card-politics">
+            <h3>Politics post</h3>
+            <p>
+              White House politics and campaign coverage appear in this card.
+            </p>
+          </article>
+
+          <article class="card" id="card-ragebait">
+            <h3>Ragebait post</h3>
+            <p>
+              This exposed meltdown went viral outrage mode immediately.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel" id="media">
+        <h2>Media fixtures</h2>
+        <div class="cards">
+          <a class="media-card" id="media-celebrity" href="#celebrity-media">
+            <img
+              alt="Jennifer Lopez portrait"
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Crect width='320' height='180' fill='%23d8dff9'/%3E%3Ctext x='160' y='95' font-size='22' text-anchor='middle' fill='%23222'%3EJennifer Lopez%3C/text%3E%3C/svg%3E"
+            />
+            <strong>Jennifer Lopez portrait card</strong>
+            <span class="muted">Media wrapper contains both image alt text and visible label.</span>
+          </a>
+
+          <a class="media-card" id="media-adult" href="#adult-media">
+            <img
+              alt="Explicit content warning fixture"
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Crect width='320' height='180' fill='%23f9d8df'/%3E%3Ctext x='160' y='95' font-size='22' text-anchor='middle' fill='%23222'%3EExplicit Fixture%3C/text%3E%3C/svg%3E"
+            />
+            <strong>Explicit content fixture</strong>
+            <span class="muted">Useful for placeholder and adult pack coverage.</span>
+          </a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

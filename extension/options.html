@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cancel It Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <div class="backdrop backdrop-a" aria-hidden="true"></div>
+    <div class="backdrop backdrop-b" aria-hidden="true"></div>
+    <main class="shell">
+      <section class="hero panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Cancel It</p>
+          <h1>Shape your web. Remove what does not deserve your attention.</h1>
+          <p class="lede">
+            Build a personal blocklist for names, phrases, and topics. Cancel It scans visible page
+            text and image metadata, then hides or masks matching references without tearing apart
+            the rest of the page.
+          </p>
+        </div>
+
+        <aside class="hero-card" aria-label="Product summary">
+          <div class="mark">
+            <img src="icons/icon128.png" alt="Cancel It logo">
+          </div>
+          <div class="hero-meta">
+            <p class="hero-label">Current focus</p>
+            <p class="hero-value">Keyword and reference filtering</p>
+          </div>
+          <div class="hero-grid">
+            <div class="metric">
+              <span class="metric-value">4</span>
+              <span class="metric-label">filter modes</span>
+            </div>
+            <div class="metric">
+              <span class="metric-value">0</span>
+              <span class="metric-label">external tracking SDKs</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="panel preview-panel">
+        <section class="section-head compact">
+          <div>
+            <p class="section-kicker">Preview</p>
+            <h2>How the extension looks</h2>
+          </div>
+          <p class="microcopy">Example product mockup showing filtered content and settings together.</p>
+        </section>
+
+        <figure class="preview-figure">
+          <img src="previews/extension-example.png" alt="Example mockup of Cancel It filtering content in a browser alongside the settings panel">
+        </figure>
+      </section>
+
+      <section class="panel">
+        <form id="settings-form" class="form">
+          <section class="settings-sticky-bar">
+            <div class="settings-sticky-copy">
+              <p class="section-kicker">Controls</p>
+              <h2>Filtering controls</h2>
+            </div>
+            <div class="settings-sticky-actions">
+              <label class="toggle">
+                <input id="enabled" type="checkbox">
+                <span class="toggle-ui" aria-hidden="true"></span>
+                <span class="toggle-copy">
+                  <strong>Filtering enabled</strong>
+                  <small>Apply your rules across supported pages.</small>
+                </span>
+              </label>
+              <div id="save-dock" class="save-dock hidden" aria-live="polite">
+                <p id="status" class="status save-status">Unsaved changes</p>
+                <button type="submit" form="settings-form">Save settings</button>
+              </div>
+            </div>
+          </section>
+
+          <fieldset class="modes">
+            <legend>Blocked content behavior</legend>
+            <label class="mode-card">
+              <input type="radio" name="mode" value="blur">
+              <button type="button" class="help-trigger" data-help-key="blur-inline" aria-label="Show blur example">?</button>
+              <span class="mode-title">Blur references</span>
+              <span class="mode-copy">Soft mask matched names and references inline.</span>
+            </label>
+            <label class="mode-card">
+              <input type="radio" name="mode" value="hide">
+              <button type="button" class="help-trigger" data-help-key="hide-block" aria-label="Show hide example">?</button>
+              <span class="mode-title">Hide references</span>
+              <span class="mode-copy">Remove matched references from view entirely.</span>
+            </label>
+            <label class="mode-card">
+              <input type="radio" name="mode" value="placeholder">
+              <button type="button" class="help-trigger" data-help-key="placeholder-custom" aria-label="Show placeholder example">?</button>
+              <span class="mode-title">Use placeholder</span>
+              <span class="mode-copy">Replace matches with a neutral blocked marker.</span>
+            </label>
+            <label class="mode-card danger">
+              <input type="radio" name="mode" value="page-blur">
+              <button type="button" class="help-trigger" data-help-key="page-blur" aria-label="Show page blur example">?</button>
+              <span class="mode-title">Blur entire page</span>
+              <span class="mode-copy">If any blocked term appears, blur whole webpage.</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="modes compact-modes">
+            <legend>Match scope</legend>
+            <label class="mode-card">
+              <input type="radio" name="match-scope" value="inline">
+              <button type="button" class="help-trigger" data-help-key="blur-inline" aria-label="Show inline example">?</button>
+              <span class="mode-title">Inline only</span>
+              <span class="mode-copy">Block exact text or media match, keep surrounding post visible.</span>
+            </label>
+            <label class="mode-card">
+              <input type="radio" name="match-scope" value="block">
+              <button type="button" class="help-trigger" data-help-key="hide-block" aria-label="Show whole block example">?</button>
+              <span class="mode-title">Whole block</span>
+              <span class="mode-copy">Hide or affect the enclosing post, card, or article when matched.</span>
+            </label>
+          </fieldset>
+
+          <section class="feature-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">Mute Packs</p>
+                <h2>Prebuilt packs</h2>
+              </div>
+              <p class="microcopy">Quick-start filters for common unwanted content types.</p>
+            </div>
+            <div id="pack-list" class="pack-grid"></div>
+            <div class="inline-form pack-add-form">
+              <select id="pack-select" class="text-input"></select>
+              <input id="pack-custom-term" class="text-input" type="text" placeholder="Add custom term to selected pack">
+              <button id="add-pack-term" type="button">Add term</button>
+            </div>
+            <div id="pack-keyword-view" class="pack-keyword-view" aria-live="polite"></div>
+            <div id="pack-custom-list" class="list-stack"></div>
+          </section>
+
+          <section class="feature-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">Temporary Mute</p>
+                <h2>Mute terms for a limited time</h2>
+              </div>
+              <p class="microcopy">Good for launches, drama cycles, and short-term detox.</p>
+            </div>
+            <div class="inline-form">
+              <input id="temp-term" class="text-input" type="text" placeholder="Enter term or phrase">
+              <select id="temp-duration" class="text-input">
+                <option value="24h">24 hours</option>
+                <option value="7d">7 days</option>
+                <option value="manual">Until manually removed</option>
+              </select>
+              <button id="add-temp-term" type="button">Add mute</button>
+            </div>
+            <div id="temp-term-list" class="list-stack"></div>
+          </section>
+
+          <section class="feature-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">Per-Site Rules</p>
+                <h2>Choose where blocked content appears</h2>
+              </div>
+              <button type="button" class="head-help-trigger" data-help-key="site-rules" aria-label="Show site rule example">?</button>
+              <p class="microcopy">Example: disable on Wikipedia, hide whole posts on X, blur on Google.</p>
+            </div>
+            <div class="site-rule-form">
+              <input id="site-pattern" class="text-input" type="text" placeholder="x.com or youtube.com">
+              <select id="site-mode" class="text-input">
+                <option value="blur">Blur</option>
+                <option value="hide">Hide</option>
+                <option value="placeholder">Placeholder</option>
+                <option value="page-blur">Page blur</option>
+                <option value="off">Do not block</option>
+              </select>
+              <select id="site-scope" class="text-input">
+                <option value="inline">Inline scope</option>
+                <option value="block">Whole block scope</option>
+              </select>
+              <button id="add-site-rule" type="button">Add rule</button>
+            </div>
+            <div id="site-rule-list" class="list-stack"></div>
+          </section>
+
+          <section class="section-head compact">
+            <div>
+              <p class="section-kicker">Blocklist</p>
+              <h2>Names and keywords</h2>
+            </div>
+            <p class="microcopy">One term or phrase per line. Matching is case-insensitive.</p>
+          </section>
+
+          <label class="stack composer" for="blocked-terms">
+            <span>Blocked terms</span>
+            <textarea
+              id="blocked-terms"
+              rows="12"
+              placeholder="Jennifer Lopez&#10;porn&#10;celebrity name&#10;topic phrase"
+            ></textarea>
+          </label>
+
+          <section class="placeholder-panel">
+            <div class="section-head compact">
+              <div class="title-with-help">
+                <p class="section-kicker">Placeholder</p>
+                <h2>Custom placeholder image</h2>
+                <button type="button" class="head-help-trigger title-help-trigger" data-help-key="placeholder-custom" aria-label="Show placeholder example">?</button>
+              </div>
+              <p class="microcopy">Used in `Use placeholder` mode. Stored locally in your browser.</p>
+            </div>
+
+            <div class="placeholder-grid">
+              <label class="upload-card" for="placeholder-image">
+                <span class="upload-kicker">Upload image</span>
+                <strong>Choose a custom image for blocked placeholders</strong>
+                <span class="support-copy">PNG, JPG, or WebP. Best results: simple, high-contrast art.</span>
+                <input id="placeholder-image" type="file" accept="image/png,image/jpeg,image/webp">
+              </label>
+
+              <div class="preview-card">
+                <div id="placeholder-preview" class="placeholder-preview" aria-label="Placeholder preview">
+                  <span>Blocked</span>
+                </div>
+                <button id="clear-placeholder-image" type="button" class="ghost-button">Remove custom image</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="privacy-note" aria-label="Privacy note">
+            <p class="privacy-title">Privacy-first by default</p>
+            <p class="help">
+              Blocked terms stay in Chrome storage on your signed-in browser profile. This version
+              does not upload page content to an external server.
+            </p>
+          </section>
+
+          <section class="feature-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">Parent Lock</p>
+                <h2>PIN protection</h2>
+              </div>
+              <p class="microcopy">Turn PIN protection on or off for the popup and settings page.</p>
+            </div>
+            <label class="toggle">
+              <input id="lock-enabled" type="checkbox">
+              <span class="toggle-ui" aria-hidden="true"></span>
+              <span class="toggle-copy">
+                <strong>Require PIN for settings changes</strong>
+                <small>Protect popup and settings so kids cannot casually change filters.</small>
+              </span>
+            </label>
+            <div class="inline-form lock-form">
+              <input id="pin-input" class="text-input" type="password" placeholder="Enter 4-8 digit PIN" inputmode="numeric">
+              <input id="pin-confirm-input" class="text-input" type="password" placeholder="Confirm PIN" inputmode="numeric">
+            </div>
+          </section>
+
+          <section class="feature-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-kicker">Settings Timer</p>
+                <h2>Edit session timeout</h2>
+              </div>
+              <p class="microcopy">Choose how long settings stay editable before locking again. Used when PIN protection is on.</p>
+            </div>
+            <div class="inline-form">
+              <select id="relock-minutes" class="text-input">
+                <option value="0">Lock immediately after save</option>
+                <option value="1">Unlock for 1 minute</option>
+                <option value="5">Unlock for 5 minutes</option>
+                <option value="15">Unlock for 15 minutes</option>
+                <option value="60">Unlock for 60 minutes</option>
+              </select>
+            </div>
+            <div class="timer-explainer">
+              <p><strong>Immediate:</strong> relocks right after saving settings.</p>
+              <p><strong>1 / 5 / 15 / 60 minutes:</strong> keeps settings editable for that long after unlock or save.</p>
+            </div>
+          </section>
+
+        </form>
+        <section id="settings-lock-screen" class="lock-screen hidden" aria-label="Settings locked">
+          <div class="lock-card">
+            <p class="section-kicker">Locked</p>
+            <h2>Settings protected</h2>
+            <p class="help">Enter parent PIN to edit settings.</p>
+            <input id="unlock-pin-input" class="text-input" type="password" placeholder="Enter PIN" inputmode="numeric">
+            <div class="actions">
+              <button id="unlock-settings" type="button">Unlock</button>
+              <p id="unlock-status" class="status" aria-live="polite"></p>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel stats-panel">
+        <section class="section-head compact">
+          <div>
+            <p class="section-kicker">History</p>
+            <h2>Blocked activity</h2>
+          </div>
+          <p class="microcopy">Local-only counters from your browser profile.</p>
+        </section>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <p class="stat-label">Total blocked</p>
+            <p id="total-blocked" class="stat-value">0</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Blocked today</p>
+            <p id="blocked-today" class="stat-value">0</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Blocked this week</p>
+            <p id="blocked-week" class="stat-value">0</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Tracked keywords</p>
+            <p id="tracked-keywords" class="stat-value">0</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Top keyword</p>
+            <p id="top-keyword" class="stat-value stat-value-small">-</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Top site</p>
+            <p id="top-site" class="stat-value stat-value-small">-</p>
+          </article>
+        </div>
+
+        <div class="history-layout">
+          <section class="history-card">
+            <div class="history-head">
+              <h3>Blocked by keyword</h3>
+              <button id="reset-stats" type="button" class="ghost-button">Reset history</button>
+            </div>
+            <div id="keyword-history" class="history-list" aria-live="polite"></div>
+          </section>
+
+          <section class="history-card">
+            <div class="history-head">
+              <h3>Recent blocked items</h3>
+            </div>
+            <div id="recent-history" class="history-list" aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel support-panel">
+        <section class="section-head compact">
+          <div>
+            <p class="section-kicker">Support</p>
+            <h2>Feedback and tiny tip jar</h2>
+          </div>
+          <p class="microcopy">Optional. One helps improve product. One helps fund coffee-level chaos.</p>
+        </section>
+
+        <div class="support-grid">
+          <a
+            class="support-card feedback-card"
+            href="https://umarafzal11.app.n8n.cloud/form/49baa5e5-c3ba-4595-aae4-c72771f2947f"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <span class="support-kicker">Feedback</span>
+            <strong>Share feedback</strong>
+            <span class="support-copy">Tell me what broke, annoyed you, or should exist next.</span>
+          </a>
+
+          <section class="support-card donate-card tip-card" aria-label="Leave a tip">
+            <span class="support-kicker">Tip</span>
+            <strong>Leave a tip</strong>
+            <span class="support-copy">Buy me one tiny internet coin so I can keep blocking nonsense for humanity.</span>
+
+            <div class="tip-actions">
+              <a
+                class="tip-button"
+                href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=umarafzal911%40gmail.com&currency_code=USD&amount=1&item_name=Cancel%20It%20%241%20tip"
+                target="_blank"
+                rel="noreferrer noopener"
+              >$1</a>
+              <a
+                class="tip-button"
+                href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=umarafzal911%40gmail.com&currency_code=USD&amount=5&item_name=Cancel%20It%20%245%20tip"
+                target="_blank"
+                rel="noreferrer noopener"
+              >$5</a>
+              <a
+                class="tip-button"
+                href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=umarafzal911%40gmail.com&currency_code=USD&amount=10&item_name=Cancel%20It%20%2410%20tip"
+                target="_blank"
+                rel="noreferrer noopener"
+              >$10</a>
+              <a
+                class="tip-button custom-tip-button"
+                href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=umarafzal911%40gmail.com&currency_code=USD&item_name=Cancel%20It%20custom%20tip"
+                target="_blank"
+                rel="noreferrer noopener"
+              >Custom</a>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="help-modal" class="help-modal">
+      <form method="dialog" class="help-shell">
+        <div class="help-top">
+          <div>
+            <p id="help-kicker" class="section-kicker">Help</p>
+            <h2 id="help-title">Example</h2>
+          </div>
+          <button id="close-help-modal" type="submit" class="ghost-button compact-button">Close</button>
+        </div>
+        <figure class="help-figure">
+          <img id="help-image" src="" alt="">
+        </figure>
+        <p id="help-copy" class="help"></p>
+      </form>
+    </dialog>
+
+    <script src="firebase-config.js"></script>
+    <script src="analytics.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,143 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --panel: rgba(22, 22, 22, 0.96);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f6f3ee;
+  --muted: #bdb5aa;
+  --accent: #ff6b3d;
+  --accent-strong: #ff9a57;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-width: 340px;
+  background: linear-gradient(180deg, #080808, #121212);
+  color: var(--text);
+  font-family: "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+.popup-shell {
+  padding: 14px;
+}
+
+.popup-panel {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.popup-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.popup-head img {
+  width: 42px;
+  height: 42px;
+}
+
+.popup-kicker,
+.popup-field span,
+.popup-toggle small {
+  color: var(--muted);
+}
+
+.popup-kicker {
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.popup-toggle,
+.popup-field {
+  display: grid;
+  gap: 8px;
+}
+
+.popup-toggle {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.popup-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+}
+
+.popup-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.popup-lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(12, 12, 12, 0.96);
+}
+
+.popup-lock input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+}
+
+.popup-status {
+  margin: 0;
+  color: var(--muted);
+}
+
+.hidden {
+  display: none !important;
+}
+
+button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #160d09;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
