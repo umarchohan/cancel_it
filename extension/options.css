@@ -664,6 +664,28 @@ h2 {
   box-shadow: none;
 }
 
+.bmc-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 221, 0, 0.22);
+  background: linear-gradient(180deg, rgba(255, 221, 0, 0.16), rgba(255, 221, 0, 0.08));
+  color: #fff2a8;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.bmc-link:hover {
+  border-color: rgba(255, 221, 0, 0.38);
+  background: linear-gradient(180deg, rgba(255, 221, 0, 0.22), rgba(255, 221, 0, 0.1));
+}
+
 .title-with-help {
   position: relative;
   display: inline-grid;
