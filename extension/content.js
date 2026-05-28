@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
     "pornography"
   ],
   enabledPacks: [],
+  customPacks: {},
   packCustomTerms: {},
   tempMutedTerms: [],
   siteRules: []
@@ -202,7 +203,14 @@ function pruneExpiredTempTerms(terms) {
 }
 
 function getPackTerms(packIds) {
-  return (packIds || []).flatMap((packId) => PACKS[packId] || []);
+  return (packIds || []).flatMap((packId) => {
+    const pack = PACKS[packId] || settings.customPacks?.[packId];
+    if (!pack) {
+      return [];
+    }
+
+    return Array.isArray(pack) ? pack : (pack.terms || []);
+  });
 }
 
 function getPackCustomTerms(customTerms) {

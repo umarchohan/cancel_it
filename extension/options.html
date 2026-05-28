@@ -132,6 +132,15 @@
               <p class="microcopy">Quick-start filters for common unwanted content types.</p>
             </div>
             <div id="pack-list" class="pack-grid"></div>
+            <div class="inline-form custom-pack-form">
+              <input id="custom-pack-name" class="text-input" type="text" placeholder="Custom pack name">
+              <input id="custom-pack-description" class="text-input" type="text" placeholder="Short description">
+              <button id="add-custom-pack" type="button">Create pack</button>
+            </div>
+            <label class="stack custom-pack-terms-field" for="custom-pack-terms">
+              <span>Custom pack keywords</span>
+              <textarea id="custom-pack-terms" rows="4" placeholder="One term per line or comma separated"></textarea>
+            </label>
             <div class="inline-form pack-add-form">
               <select id="pack-select" class="text-input"></select>
               <input id="pack-custom-term" class="text-input" type="text" placeholder="Add custom term to selected pack">
@@ -139,6 +148,7 @@
             </div>
             <div id="pack-keyword-view" class="pack-keyword-view" aria-live="polite"></div>
             <div id="pack-custom-list" class="list-stack"></div>
+            <div id="custom-pack-list" class="list-stack"></div>
           </section>
 
           <section class="feature-panel">

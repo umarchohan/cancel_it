@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
   matchScope: "inline",
   blockedTerms: ["jennifer lopez", "porn", "pornography"],
   enabledPacks: [],
+  customPacks: {},
   packCustomTerms: {},
   tempMutedTerms: [],
   siteRules: [],
@@ -115,6 +116,11 @@ const packCustomTermInput = document.getElementById("pack-custom-term");
 const addPackTermButton = document.getElementById("add-pack-term");
 const packKeywordViewNode = document.getElementById("pack-keyword-view");
 const packCustomListNode = document.getElementById("pack-custom-list");
+const customPackNameInput = document.getElementById("custom-pack-name");
+const customPackDescriptionInput = document.getElementById("custom-pack-description");
+const customPackTermsInput = document.getElementById("custom-pack-terms");
+const addCustomPackButton = document.getElementById("add-custom-pack");
+const customPackListNode = document.getElementById("custom-pack-list");
 const tempTermInput = document.getElementById("temp-term");
 const tempDurationInput = document.getElementById("temp-duration");
 const addTempTermButton = document.getElementById("add-temp-term");
@@ -171,6 +177,7 @@ function collectDraftSettings() {
     matchScope: readMatchScope(),
     blockedTerms: blockedTermsInput.value.split("\n").map(normalizeTerm).filter(Boolean),
     enabledPacks: settingsState.enabledPacks,
+    customPacks: settingsState.customPacks,
     packCustomTerms: settingsState.packCustomTerms,
     tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms),
     siteRules: settingsState.siteRules,
@@ -258,6 +265,31 @@ function markSaved(message = "Settings saved.") {
 
 function normalizeTerm(value) {
   return (value || "").trim();
+}
+
+function normalizePackId(value) {
+  return normalizeTerm(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseTermsInput(value) {
+  return Array.from(
+    new Set(
+      (value || "")
+        .split(/[\n,]+/)
+        .map((term) => normalizeTerm(term).toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+function getAllPacks() {
+  return {
+    ...PACKS,
+    ...(settingsState.customPacks || {})
+  };
 }
 
 function pruneExpiredTempTerms(terms) {
@@ -372,7 +404,7 @@ async function clearUnlockWindow() {
 
 function renderPackSelect() {
   packSelectInput.innerHTML = "";
-  for (const [packId, pack] of Object.entries(PACKS)) {
+  for (const [packId, pack] of Object.entries(getAllPacks())) {
     const option = document.createElement("option");
     option.value = packId;
     option.textContent = pack.label;
@@ -383,12 +415,14 @@ function renderPackSelect() {
 function renderPackList() {
   packListNode.innerHTML = "";
 
-  for (const [packId, pack] of Object.entries(PACKS)) {
+  for (const [packId, pack] of Object.entries(getAllPacks())) {
     const customCount = (settingsState.packCustomTerms?.[packId] || []).length;
+    const isCustomPack = Boolean(settingsState.customPacks?.[packId]);
     const label = document.createElement("label");
     label.className = "pack-card";
     label.innerHTML = `
       <input type="checkbox" value="${packId}">
+      ${isCustomPack ? '<span class="pack-badge">Custom pack</span>' : ""}
       <span class="pack-title">${pack.label}</span>
       <span class="pack-copy">${pack.description}</span>
       <span class="history-item-meta">${pack.terms.length} built-in • ${customCount} custom</span>
@@ -457,7 +491,7 @@ function renderPackKeywordSection(title, terms, emptyMessage, className = "", op
         <span>${term}</span>
         <span class="term-chip-remove" aria-hidden="true">×</span>
       `;
-      chipButton.setAttribute("aria-label", `Remove ${term} from ${PACKS[options.packId]?.label || options.packId}`);
+      chipButton.setAttribute("aria-label", `Remove ${term} from ${getAllPacks()[options.packId]?.label || options.packId}`);
       chipButton.addEventListener("click", () => removePackCustomTerm(options.packId, term));
       chipWrap.appendChild(chipButton);
       continue;
@@ -475,7 +509,7 @@ function renderPackKeywordSection(title, terms, emptyMessage, className = "", op
 
 function renderPackKeywordView() {
   const packId = packSelectInput.value;
-  const pack = PACKS[packId];
+  const pack = getAllPacks()[packId];
 
   if (!pack) {
     packKeywordViewNode.innerHTML = "";
@@ -522,7 +556,7 @@ function renderPackCustomList() {
     item.className = "list-item";
     item.innerHTML = `
       <div class="list-item-top">
-        <span class="history-item-term">${PACKS[packId]?.label || packId}</span>
+        <span class="history-item-term">${getAllPacks()[packId]?.label || packId}</span>
         <button type="button" class="ghost-button compact-button">Clear</button>
       </div>
       <p class="history-item-meta">${terms.join(", ")}</p>
@@ -537,6 +571,42 @@ function renderPackCustomList() {
     });
 
     packCustomListNode.appendChild(item);
+  }
+}
+
+function renderCustomPackList() {
+  customPackListNode.innerHTML = "";
+  const entries = Object.entries(settingsState.customPacks || {});
+
+  if (!entries.length) {
+    customPackListNode.innerHTML = '<div class="list-item"><p class="history-item-meta">No custom packs yet.</p></div>';
+    return;
+  }
+
+  for (const [packId, pack] of entries) {
+    const item = document.createElement("article");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-item-top">
+        <span class="history-item-term">${pack.label}</span>
+        <button type="button" class="ghost-button compact-button">Remove</button>
+      </div>
+      <p class="history-item-meta">${pack.description || "No description"} • ${pack.terms.length} keyword${pack.terms.length === 1 ? "" : "s"}</p>
+    `;
+
+    item.querySelector("button").addEventListener("click", () => {
+      delete settingsState.customPacks[packId];
+      delete settingsState.packCustomTerms[packId];
+      settingsState.enabledPacks = settingsState.enabledPacks.filter((id) => id !== packId);
+      renderPackSelect();
+      renderPackList();
+      renderPackKeywordView();
+      renderPackCustomList();
+      renderCustomPackList();
+      markDirty("Custom pack removed. Save settings to apply.");
+    });
+
+    customPackListNode.appendChild(item);
   }
 }
 
@@ -612,6 +682,7 @@ function applySettings(rawSettings) {
 
   settingsState.tempMutedTerms = pruneExpiredTempTerms(settingsState.tempMutedTerms);
   settingsState.packCustomTerms = settingsState.packCustomTerms || {};
+  settingsState.customPacks = settingsState.customPacks || {};
 
   enabledInput.checked = settingsState.enabled;
   blockedTermsInput.value = (settingsState.blockedTerms || []).join("\n");
@@ -634,6 +705,7 @@ function applySettings(rawSettings) {
   renderPackList();
   renderPackKeywordView();
   renderPackCustomList();
+  renderCustomPackList();
   renderTempTermList();
   renderSiteRuleList();
   applyLockStateToUI();
@@ -651,6 +723,7 @@ function collectSettings() {
     matchScope: readMatchScope(),
     blockedTerms: blockedTermsInput.value.split("\n").map(normalizeTerm).filter(Boolean),
     enabledPacks: settingsState.enabledPacks,
+    customPacks: settingsState.customPacks,
     packCustomTerms: settingsState.packCustomTerms,
     tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms),
     siteRules: settingsState.siteRules,
@@ -932,6 +1005,59 @@ addPackTermButton.addEventListener("click", () => {
     total_custom_pack_term_count: Object.values(settingsState.packCustomTerms).reduce((sum, terms) => sum + terms.length, 0)
   });
   markDirty("Custom pack term added. Save settings to apply.");
+});
+
+addCustomPackButton.addEventListener("click", () => {
+  const label = normalizeTerm(customPackNameInput.value);
+  const description = normalizeTerm(customPackDescriptionInput.value);
+  const terms = parseTermsInput(customPackTermsInput.value);
+  const packIdBase = normalizePackId(label);
+
+  if (!label) {
+    setStatus("Enter a custom pack name.");
+    return;
+  }
+
+  if (!terms.length) {
+    setStatus("Add at least one keyword for the custom pack.");
+    return;
+  }
+
+  if (!packIdBase) {
+    setStatus("Custom pack name needs letters or numbers.");
+    return;
+  }
+
+  let packId = `custom_${packIdBase}`;
+  let suffix = 2;
+  while (getAllPacks()[packId]) {
+    packId = `custom_${packIdBase}_${suffix}`;
+    suffix += 1;
+  }
+
+  settingsState.customPacks[packId] = {
+    label,
+    description: description || "User-created pack for personal filtering.",
+    terms
+  };
+
+  settingsState.enabledPacks = Array.from(new Set([...settingsState.enabledPacks, packId]));
+  customPackNameInput.value = "";
+  customPackDescriptionInput.value = "";
+  customPackTermsInput.value = "";
+  renderPackSelect();
+  packSelectInput.value = packId;
+  renderPackList();
+  renderPackKeywordView();
+  renderPackCustomList();
+  renderCustomPackList();
+  analytics.track("custom_pack_created", {
+    pack_id: packId,
+    initial_term_count: terms.length,
+    enabled_pack_count: settingsState.enabledPacks.length,
+    custom_pack_count: Object.keys(settingsState.customPacks).length
+  });
+  markDirty("Custom pack created. Save settings to apply.");
 });
 
 packSelectInput.addEventListener("change", () => {
