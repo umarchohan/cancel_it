@@ -69,6 +69,69 @@ h1 {
   gap: 8px;
 }
 
+.popup-reasons {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.popup-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.count-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 107, 61, 0.16);
+  color: #ffd7c6;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.popup-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.popup-reasons-list {
+  display: grid;
+  gap: 8px;
+}
+
+.popup-reason-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.popup-reason-row strong {
+  font-size: 13px;
+}
+
+.popup-reason-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .popup-toggle {
   grid-template-columns: 1fr auto;
   align-items: center;

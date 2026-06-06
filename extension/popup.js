@@ -1,5 +1,6 @@
 const STORAGE_KEY = "cancelItSettings";
 const LOCK_STATE_KEY = "cancelItLockState";
+const PAGE_SUMMARY_STORAGE_KEY = "cancelItPageSummaries";
 const DEFAULT_SETTINGS = {
   enabled: true,
   mode: "blur",
@@ -22,22 +23,66 @@ const popupLockScreen = document.getElementById("popup-lock-screen");
 const popupUnlockPinInput = document.getElementById("popup-unlock-pin");
 const popupUnlockButton = document.getElementById("popup-unlock");
 const popupLockStatusNode = document.getElementById("popup-lock-status");
+const blockedCountPill = document.getElementById("blocked-count-pill");
+const popupReasonsEmptyNode = document.getElementById("popup-reasons-empty");
+const popupReasonsListNode = document.getElementById("popup-reasons-list");
 const analytics = window.CancelItAnalytics || { track: () => null, summarizeSettings: () => ({}) };
 let currentSettings = structuredClone(DEFAULT_SETTINGS);
 let lockState = { unlockedUntil: 0 };
+let currentTabUrl = "";
 
 async function getCurrentHostname() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab?.url) {
       return "";
     }
 
+    if (tab.url.startsWith("chrome-extension://")) {
+      return "";
+    }
+
+    currentTabUrl = tab.url;
     const url = new URL(tab.url);
     return url.hostname;
   } catch (_error) {
+    currentTabUrl = "";
     return "";
   }
+}
+
+async function loadCurrentPageSummary() {
+  const result = await chrome.storage.local.get([PAGE_SUMMARY_STORAGE_KEY]);
+  const summaries = result[PAGE_SUMMARY_STORAGE_KEY] || {};
+  if (!currentTabUrl) {
+    return null;
+  }
+
+  return summaries[currentTabUrl] || null;
+}
+
+function renderPageSummary(summary) {
+  const totalBlocked = Number(summary?.totalBlocked || 0);
+  blockedCountPill.textContent = `${totalBlocked} blocked`;
+
+  if (!summary || !summary.reasons || !Object.keys(summary.reasons).length) {
+    popupReasonsEmptyNode.classList.remove("hidden");
+    popupReasonsListNode.classList.add("hidden");
+    popupReasonsListNode.innerHTML = "";
+    return;
+  }
+
+  const sortedReasons = Object.entries(summary.reasons)
+    .sort((left, right) => right[1] - left[1]);
+
+  popupReasonsListNode.innerHTML = sortedReasons.map(([label, count]) => `
+    <div class="popup-reason-row">
+      <strong>${label}</strong>
+      <span class="popup-reason-count">${count}</span>
+    </div>
+  `).join("");
+  popupReasonsEmptyNode.classList.add("hidden");
+  popupReasonsListNode.classList.remove("hidden");
 }
 
 function applySettings(settings) {
@@ -107,6 +152,8 @@ chrome.storage.sync.get([STORAGE_KEY], async (result) => {
   setLockedUi();
   const hostname = await getCurrentHostname();
   siteStatusNode.textContent = hostname ? `Current site: ${hostname}` : "Current site unavailable";
+  const summary = await loadCurrentPageSummary();
+  renderPageSummary(summary);
 });
 
 saveButton.addEventListener("click", () => {
@@ -156,5 +203,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes[LOCK_STATE_KEY]) {
     lockState = { unlockedUntil: changes[LOCK_STATE_KEY].newValue?.unlockedUntil || 0 };
     setLockedUi();
+  }
+
+  if (areaName === "local" && changes[PAGE_SUMMARY_STORAGE_KEY]) {
+    const summaries = changes[PAGE_SUMMARY_STORAGE_KEY].newValue || {};
+    renderPageSummary(currentTabUrl ? summaries[currentTabUrl] || null : null);
   }
 });
