@@ -143,6 +143,7 @@ const settingsLockScreen = document.getElementById("settings-lock-screen");
 const unlockPinInput = document.getElementById("unlock-pin-input");
 const unlockSettingsButton = document.getElementById("unlock-settings");
 const unlockStatusNode = document.getElementById("unlock-status");
+const floatingRateLink = document.getElementById("floating-rate-link");
 const analytics = window.CancelItAnalytics || { track: () => null, summarizeSettings: () => ({}) };
 
 let assets = { placeholderImage: "" };
@@ -164,6 +165,14 @@ function setStatus(message, target = statusNode) {
     }
     target.textContent = "";
   }, 2400);
+}
+
+function setupFloatingActions() {
+  if (!floatingRateLink || typeof chrome === "undefined" || !chrome.runtime?.id) {
+    return;
+  }
+
+  floatingRateLink.href = `https://chrome.google.com/webstore/detail/${chrome.runtime.id}/reviews`;
 }
 
 function serializeSettings(settings) {
@@ -1190,4 +1199,5 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+setupFloatingActions();
 loadSettings();
