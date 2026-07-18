@@ -117,8 +117,11 @@ let activeSettings = {
   mode: "blur",
   matchScope: "inline",
   blockedTerms: [],
+  termMatchers: [],
   termSources: {}
 };
+let pageSummarySyncTimer = null;
+let lastPersistedSummarySignature = "";
 
 function createEmptyPageSummary() {
   return {
@@ -321,7 +324,7 @@ function ensureStyles() {
 }
 
 function applyAssetStyles() {
-  const image = assets.placeholderImage || "";
+  const image = (assets.placeholderImage || "").replace(/["\\\n\r]/g, "");
   if (image) {
     document.documentElement.style.setProperty("--cancel-it-placeholder-image", `url("${image}")`);
   } else {
@@ -427,6 +430,12 @@ function rebuildActiveSettings() {
     mode: siteMode,
     matchScope: siteScope,
     blockedTerms: mergedTerms,
+    // Each term only matches when it starts at a word boundary, so "crypto"
+    // still catches "cryptobro" but no longer fires on mid-word hits.
+    termMatchers: mergedTerms.map((term) => ({
+      term,
+      regex: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(term)}`, "iu")
+    })),
     termSources: buildTermSources()
   };
 }
@@ -441,7 +450,7 @@ function getTermRegex() {
     return null;
   }
 
-  return new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
+  return new RegExp(`(?<![\\p{L}\\p{N}])(${terms.map(escapeRegExp).join("|")})`, "giu");
 }
 
 function unwrapTextWrappers(root = document.body) {
@@ -490,17 +499,28 @@ function flushStats() {
       byKeyword: {},
       recent: []
     };
+    stats.byDay = stats.byDay || {};
     const pageSummaries = result[PAGE_SUMMARY_STORAGE_KEY] || {};
 
     for (const event of events) {
       stats.totalBlocked += 1;
       stats.byKeyword[event.term] = (stats.byKeyword[event.term] || 0) + 1;
+      const dayKey = (event.timestamp || new Date().toISOString()).slice(0, 10);
+      stats.byDay[dayKey] = (stats.byDay[dayKey] || 0) + 1;
       stats.recent.unshift({
         term: event.term,
+        source: event.source,
         type: event.type,
         host: event.host,
         timestamp: event.timestamp
       });
+    }
+
+    const dayCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    for (const dayKey of Object.keys(stats.byDay)) {
+      if (dayKey < dayCutoff) {
+        delete stats.byDay[dayKey];
+      }
     }
 
     stats.recent = stats.recent.slice(0, 100);
@@ -1049,9 +1069,9 @@ function getMatchReason(text) {
     return null;
   }
 
-  for (const term of getTerms()) {
-    if (normalizedText.includes(term)) {
-      return term;
+  for (const matcher of activeSettings.termMatchers || []) {
+    if (matcher.regex.test(normalizedText)) {
+      return matcher.term;
     }
   }
 
@@ -1236,30 +1256,82 @@ function refreshPageSessionState() {
   }
 }
 
+function schedulePageSummarySync() {
+  window.clearTimeout(pageSummarySyncTimer);
+  pageSummarySyncTimer = window.setTimeout(persistPageSummary, 900);
+}
+
+// Keeps the popup honest: writes this page's summary even when nothing was
+// blocked, so a previous visit's counts don't linger for the same URL.
+function persistPageSummary() {
+  const signature = `${location.href}|${pageSummaryState.totalBlocked}`;
+  if (signature === lastPersistedSummarySignature) {
+    return;
+  }
+
+  lastPersistedSummarySignature = signature;
+  chrome.storage.local.get([PAGE_SUMMARY_STORAGE_KEY], (result) => {
+    const pageSummaries = result[PAGE_SUMMARY_STORAGE_KEY] || {};
+
+    // Only record URLs that have blocks, or overwrite a stale entry from a
+    // previous visit — never build a log of clean pages.
+    if (!pageSummaryState.totalBlocked && !pageSummaries[location.href]) {
+      return;
+    }
+
+    const nextPageSummaries = {
+      ...pageSummaries,
+      [location.href]: {
+        ...pageSummaryState,
+        url: location.href,
+        host: location.hostname,
+        lastUpdated: new Date().toISOString()
+      }
+    };
+    const trimmedPageSummaries = Object.fromEntries(
+      Object.entries(nextPageSummaries)
+        .sort((left, right) => new Date(right[1].lastUpdated || 0).getTime() - new Date(left[1].lastUpdated || 0).getTime())
+        .slice(0, 25)
+    );
+
+    chrome.storage.local.set({ [PAGE_SUMMARY_STORAGE_KEY]: trimmedPageSummaries });
+  });
+}
+
 function fullRescan() {
   refreshPageSessionState();
   rebuildActiveSettings();
   ensureStyles();
-  clearBlockedState();
-  if (!activeSettings.enabled || !document.body) {
-    return;
-  }
 
-  if (activeSettings.mode === "page-blur") {
-    const reason = getMatchReason(collectPageText());
-    if (reason) {
-      document.documentElement.setAttribute(PAGE_FLAG_ATTR, "page-blur");
-      document.documentElement.setAttribute(REASON_ATTR, `matched: ${escapeHtml(reason)}`);
-      recordBlock(reason, "page", document.body, `${reason}|page|${location.href}`);
+  // Pause the observer while we mutate the DOM ourselves; otherwise the
+  // clear-and-reapply cycle generates mutations that schedule the next rescan
+  // forever, burning CPU on every page with at least one match.
+  observer?.disconnect();
+  try {
+    clearBlockedState();
+    if (!activeSettings.enabled || !document.body) {
+      return;
     }
-    return;
-  }
 
-  scanFacebookSearchResults(document.body);
-  scanStructuredContainers(document.body);
-  scanText(document.body);
-  scanImages(document.body);
-  scanMediaContainers(document.body);
+    if (activeSettings.mode === "page-blur") {
+      const reason = getMatchReason(collectPageText());
+      if (reason) {
+        document.documentElement.setAttribute(PAGE_FLAG_ATTR, "page-blur");
+        document.documentElement.setAttribute(REASON_ATTR, `matched: ${escapeHtml(reason)}`);
+        recordBlock(reason, "page", document.body, `${reason}|page|${location.href}`);
+      }
+      return;
+    }
+
+    scanFacebookSearchResults(document.body);
+    scanStructuredContainers(document.body);
+    scanText(document.body);
+    scanImages(document.body);
+    scanMediaContainers(document.body);
+  } finally {
+    observeBody();
+    schedulePageSummarySync();
+  }
 }
 
 function scheduleScan() {
@@ -1267,6 +1339,20 @@ function scheduleScan() {
   scanTimer = window.setTimeout(() => {
     fullRescan();
   }, 120);
+}
+
+function observeBody() {
+  if (!observer || !document.body) {
+    return;
+  }
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["alt", "title", "aria-label", "src", "href", "content"]
+  });
 }
 
 function startObserver() {
@@ -1278,13 +1364,7 @@ function startObserver() {
     scheduleScan();
   });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributes: true,
-    attributeFilter: ["alt", "title", "aria-label", "src", "href", "content"]
-  });
+  observeBody();
 }
 
 function loadSettings() {
