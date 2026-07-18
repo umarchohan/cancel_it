@@ -56,6 +56,38 @@ Productivity
 - User activity: Processes visible page content locally to apply user filters; does not transmit externally
 - Website content: Processes visible page text and image metadata locally to apply user filters
 
+## Privacy practices tab — copy-paste answers (v0.2.0)
+
+### Single purpose description
+
+> Cancel It lets users hide, blur, or replace words, names, and topics they choose (a personal blocklist plus optional keyword packs) on the webpages they visit. All page scanning happens locally in the browser; nothing is uploaded.
+
+### activeTab justification
+
+> The toolbar popup uses activeTab, granted only when the user clicks the extension icon, to read the current tab's URL so it can show which site the user is on, how many items were filtered on that page, and which of the user's rules caused it. The URL is used only for this display and for the user's own per-site filtering rules; it is never transmitted off the device.
+
+### Host permission justification (content script on all sites)
+
+> The extension's single purpose is to hide, blur, or replace user-chosen words and topics on any page the user visits. To do this, the content script must run on all sites to scan visible page text and image metadata locally against the user's blocklist and apply the chosen visual treatment. Filtering cannot work on a site the script cannot read. All matching happens on the user's device; no page content, URLs, or keywords are ever sent to any server.
+
+### storage justification
+
+> chrome.storage.sync stores the user's own settings: blocklist terms, enabled keyword packs, per-site rules, display preferences, and the salted hash of the optional family-controls PIN (never the PIN itself). chrome.storage.local stores local-only filtering statistics (counts of blocked items), the user's optional custom placeholder image, and the temporary unlock state. All of this exists solely to provide the extension's functionality and never leaves the user's browser profile apart from Chrome's own settings sync.
+
+### Remote code use
+
+Select: **No, I am not using remote code.** (All JavaScript is bundled in the package. No CDN scripts, no eval, no remotely fetched code. If the form insists on a text justification, enter: "This extension does not execute remote code. All scripts ship inside the package.")
+
+### Data usage section
+
+- Check **none** of the data-collection categories — the extension does not collect or transmit any user data. Page content is read and discarded in-memory on the user's device; settings and stats stay in browser storage.
+- Tick all three certification checkboxes (no sale of data, no use unrelated to single purpose, no use for creditworthiness) and the developer programme policies certification.
+
+### Listing form
+
+- Language: **English**
+- Category: **Well-being** (alternative: Tools)
+
 ## Reviewer notes
 
 - Open extension options page
