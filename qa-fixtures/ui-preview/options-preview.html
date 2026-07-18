@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cancel It Settings</title>
+    <link rel="stylesheet" href="../../extension/theme.css">
+    <link rel="stylesheet" href="../../extension/options.css">
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div class="page-brand">
+          <img src="../../extension/assets/in-app/logo-mark.png" width="40" height="40" alt="">
+          <div>
+            <p class="page-title">Cancel It</p>
+            <p class="page-tagline">See less of what you don't want. Everything stays on your device.</p>
+          </div>
+        </div>
+        <div id="header-status-card" class="status-card">
+          <span id="header-status-text" class="status-text on">Filtering on</span>
+          <button id="header-toggle" class="switch" type="button" role="switch" aria-checked="true" aria-label="Filtering on or off"><span class="knob"></span></button>
+        </div>
+      </header>
+
+      <section id="lock-screen" class="lock-screen hidden" aria-label="Settings locked">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0E7A6B" stroke-width="1.8" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        <h1 class="lock-title">Settings are locked</h1>
+        <p class="lock-copy">Enter the family PIN to make changes.</p>
+        <input id="unlock-pin" type="password" inputmode="numeric" maxlength="8" aria-label="Family PIN" autocomplete="off">
+        <p id="unlock-error" class="field-error hidden" role="alert"></p>
+        <button id="unlock-button" class="button-primary" type="button">Unlock</button>
+      </section>
+
+      <div id="settings-layout" class="layout">
+        <nav class="side-nav" aria-label="Settings sections">
+          <button class="nav-item" data-section="overview" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg>
+            Overview
+          </button>
+          <button class="nav-item" data-section="blocklist" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg>
+            Blocklist
+          </button>
+          <button class="nav-item" data-section="packs" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path></svg>
+            Packs
+          </button>
+          <button class="nav-item" data-section="sites" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"></path></svg>
+            Sites
+          </button>
+          <button class="nav-item" data-section="appearance" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"></path><circle cx="16" cy="8" r="2"></circle><circle cx="8" cy="16" r="2"></circle></svg>
+            Filtering style
+          </button>
+          <button class="nav-item" data-section="family" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3z"></path></svg>
+            Family controls
+          </button>
+          <button class="nav-item" data-section="activity" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>
+            Activity
+          </button>
+          <div class="nav-extra">
+            <a id="rate-link" class="nav-link" href="https://chrome.google.com/webstore" target="_blank" rel="noreferrer noopener">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.8-4.6 4.3 1.2 6.2-5.6-3-5.6 3 1.2-6.2L3 9.5l6.3-.8L12 3z"></path></svg>
+              Rate us
+            </a>
+            <button class="nav-item nav-link" data-section="support" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#F7C948" stroke="#D9A514" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c-5-3.5-9-6.5-9-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 4.5-4 7.5-9 11z"></path></svg>
+              Support us
+            </button>
+          </div>
+        </nav>
+
+        <div class="sections">
+          <!-- Overview -->
+          <section id="section-overview" class="section" data-title="Overview">
+            <h2 class="section-title">Overview</h2>
+            <div class="card hero-card">
+              <div>
+                <p id="hero-title" class="hero-title">Cancel It is watching for your muted topics</p>
+                <p id="hero-sub" class="hero-sub">Pages you visit are checked on your device against your blocklist and enabled packs.</p>
+              </div>
+            </div>
+            <div class="overview-grid">
+              <button class="card overview-tile" data-goto="blocklist" type="button">
+                <span class="tile-label">Your blocklist</span>
+                <span id="tile-terms" class="tile-value">0 terms</span>
+                <span class="tile-cta">Edit blocklist →</span>
+              </button>
+              <button class="card overview-tile" data-goto="packs" type="button">
+                <span class="tile-label">Mute packs on</span>
+                <span id="tile-packs" class="tile-value">0 of 7</span>
+                <span class="tile-cta">Browse packs →</span>
+              </button>
+              <button class="card overview-tile" data-goto="appearance" type="button">
+                <span class="tile-label">When something matches</span>
+                <span id="tile-mode" class="tile-value">Blur it</span>
+                <span class="tile-cta">Change style →</span>
+              </button>
+            </div>
+            <div class="privacy-banner">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E7A6B" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3z"></path><path d="M9 12l2 2 4-4"></path></svg>
+              <p><strong>Private by design.</strong> Cancel It reads pages on your device to find your chosen words. Nothing you browse, block, or type is uploaded anywhere.</p>
+            </div>
+          </section>
+
+          <!-- Blocklist -->
+          <section id="section-blocklist" class="section hidden" data-title="Blocklist">
+            <div class="section-intro">
+              <h2 class="section-title">Blocklist</h2>
+              <p class="section-sub">Names, words, or phrases you never want to see. Matching ignores capitalization.</p>
+            </div>
+            <div class="card">
+              <label class="field-label" for="add-term">Add a term</label>
+              <div class="inline-row">
+                <input id="add-term" class="text-input grow" type="text" placeholder="e.g. Jennifer Lopez">
+                <button id="add-term-button" class="button-primary" type="button">Add</button>
+              </div>
+              <div id="term-chips" class="chip-wrap"></div>
+            </div>
+            <div class="card">
+              <p class="card-title">Temporary mutes</p>
+              <p class="card-sub">Mute something for a while — it comes back automatically when the time is up.</p>
+              <div class="inline-row">
+                <input id="temp-term" class="text-input grow" type="text" placeholder="e.g. Oscars 2026" aria-label="Term to mute">
+                <select id="temp-duration" class="text-input" aria-label="Mute duration">
+                  <option value="24h">For 24 hours</option>
+                  <option value="7d">For 7 days</option>
+                  <option value="manual">Until I remove it</option>
+                </select>
+                <button id="add-temp-button" class="button-outline" type="button">Mute</button>
+              </div>
+              <div id="temp-list" class="row-list"></div>
+              <p id="temp-empty" class="empty-note">No temporary mutes right now.</p>
+            </div>
+          </section>
+
+          <!-- Packs -->
+          <section id="section-packs" class="section hidden" data-title="Packs">
+            <div class="section-head-row">
+              <div class="section-intro">
+                <h2 class="section-title">Mute packs</h2>
+                <p class="section-sub">Ready-made keyword lists. Peek inside any pack before you turn it on.</p>
+              </div>
+              <button id="new-pack-toggle" class="button-outline" type="button">+ New custom pack</button>
+            </div>
+            <div id="new-pack-form" class="card new-pack-card hidden">
+              <p class="card-title">New custom pack</p>
+              <div class="inline-row wrap">
+                <div class="field grow">
+                  <label class="field-label" for="np-name">Pack name</label>
+                  <input id="np-name" class="text-input full" type="text" placeholder="e.g. Reality TV">
+                </div>
+                <div class="field grow-2">
+                  <label class="field-label" for="np-desc">Description <span class="optional">(optional)</span></label>
+                  <input id="np-desc" class="text-input full" type="text">
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label" for="np-terms">Keywords <span class="optional">— separate with commas or new lines</span></label>
+                <textarea id="np-terms" class="text-input full" rows="3" placeholder="villa, rose ceremony, elimination"></textarea>
+              </div>
+              <p id="np-error" class="field-error hidden" role="alert"></p>
+              <div class="inline-row">
+                <button id="create-pack-button" class="button-primary" type="button">Create pack</button>
+                <button id="cancel-pack-button" class="button-quiet" type="button">Cancel</button>
+              </div>
+            </div>
+            <div id="pack-list" class="pack-list"></div>
+          </section>
+
+          <!-- Sites -->
+          <section id="section-sites" class="section hidden" data-title="Sites">
+            <div class="section-intro">
+              <h2 class="section-title">Site rules</h2>
+              <p class="section-sub">Fine-tune how filtering behaves on specific websites. A site rule wins over your general settings.
+                <button class="help-dot" data-help="site-rules" type="button" aria-label="How site rules work">?</button>
+              </p>
+            </div>
+            <div class="card">
+              <div id="site-rule-list" class="row-list"></div>
+              <p id="site-rules-empty" class="empty-note">No site rules yet. Your general settings apply everywhere.</p>
+              <div class="inline-row add-rule-row">
+                <input id="site-domain" class="text-input grow" type="text" placeholder="Add a site, e.g. youtube.com" aria-label="Website domain">
+                <button id="add-rule-button" class="button-primary" type="button">Add rule</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Filtering style -->
+          <section id="section-appearance" class="section hidden" data-title="Filtering style">
+            <div class="section-intro">
+              <h2 class="section-title">Filtering style</h2>
+              <p class="section-sub">What should happen when Cancel It finds something on your list?</p>
+            </div>
+            <div id="mode-cards" class="option-grid" role="radiogroup" aria-label="Filtering mode">
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-mode="blur">
+                <div class="option-head">
+                  <span class="option-title">Blur it</span>
+                  <button class="help-dot" data-help="blur-inline" type="button" aria-label="See a blur example">?</button>
+                </div>
+                <p class="option-copy">Softly blur the matching words or images. The rest of the page stays put.</p>
+              </div>
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-mode="hide">
+                <div class="option-head">
+                  <span class="option-title">Hide it</span>
+                  <button class="help-dot" data-help="hide-block" type="button" aria-label="See a hide example">?</button>
+                </div>
+                <p class="option-copy">Remove matching content completely, as if it was never there.</p>
+              </div>
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-mode="placeholder">
+                <div class="option-head">
+                  <span class="option-title">Swap in a placeholder</span>
+                  <button class="help-dot" data-help="placeholder-custom" type="button" aria-label="See a placeholder example">?</button>
+                </div>
+                <p class="option-copy">Replace matches with a calm "Blocked" card so you know something was there.</p>
+              </div>
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-mode="page-blur">
+                <div class="option-head">
+                  <span class="option-title">Blur the whole page</span>
+                  <button class="help-dot" data-help="page-blur" type="button" aria-label="See a page blur example">?</button>
+                </div>
+                <p class="option-copy">If a page mentions anything on your list, blur the entire page. The strictest option.</p>
+              </div>
+            </div>
+            <div class="section-intro">
+              <p class="card-title">How much gets affected?</p>
+              <p class="section-sub">Applies to blur, hide, and placeholder styles.</p>
+            </div>
+            <div id="scope-cards" class="option-grid two" role="radiogroup" aria-label="Match scope">
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-scope="inline">
+                <div class="option-head"><span class="option-title">Just the reference</span></div>
+                <p class="option-copy">Only the matching words or image are affected. Good for reading around a topic.</p>
+              </div>
+              <div class="option-card" role="radio" aria-checked="false" tabindex="0" data-scope="block">
+                <div class="option-head"><span class="option-title">The whole post</span></div>
+                <p class="option-copy">The entire post, search result, or article card is affected. Works great on Facebook, LinkedIn, and X.</p>
+              </div>
+            </div>
+            <div id="placeholder-card" class="card">
+              <p class="card-title">Custom placeholder image</p>
+              <p id="placeholder-note" class="card-sub">Shown instead of the default "Blocked" card. Only used in placeholder style.</p>
+              <div id="placeholder-preview-row" class="placeholder-row hidden">
+                <div id="placeholder-preview" class="placeholder-preview" role="img" aria-label="Current placeholder image"><span>Blocked</span></div>
+                <button id="remove-image-button" class="button-danger-ghost" type="button">Remove image</button>
+              </div>
+              <label id="upload-zone" class="upload-zone" for="placeholder-image">
+                Upload a PNG, JPEG, or WebP · stored only on this device
+                <input id="placeholder-image" type="file" accept="image/png,image/jpeg,image/webp">
+              </label>
+            </div>
+          </section>
+
+          <!-- Family controls -->
+          <section id="section-family" class="section hidden" data-title="Family controls">
+            <div class="section-intro">
+              <h2 class="section-title">Family controls</h2>
+              <p class="section-sub">Protect these settings with a PIN so they can't be changed casually. A determined, tech-savvy person could still get around it — treat it as a speed bump, not a vault.</p>
+            </div>
+            <div class="card">
+              <div class="pin-toggle-row">
+                <div>
+                  <p class="card-title">Require a PIN</p>
+                  <p class="card-sub tight">Locks both this page and the toolbar popup.</p>
+                </div>
+                <button id="pin-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="PIN protection"><span class="knob"></span></button>
+              </div>
+              <div id="pin-config" class="pin-config hidden">
+                <div class="inline-row wrap">
+                  <div class="field">
+                    <label class="field-label" for="pin-input">Choose a PIN <span class="optional">(4–8 digits)</span></label>
+                    <input id="pin-input" class="text-input pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="pin-confirm">Repeat it</label>
+                    <input id="pin-confirm" class="text-input pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+                  </div>
+                </div>
+                <p id="pin-keep-note" class="card-sub hidden">A PIN is already set. Leave both fields blank to keep it.</p>
+                <p id="pin-error" class="pin-error hidden" role="alert"></p>
+                <div class="field">
+                  <p class="field-label">After you unlock, keep settings open for…</p>
+                  <div id="relock-options" class="relock-row" role="radiogroup" aria-label="Relock timing"></div>
+                  <p id="relock-note" class="relock-note"></p>
+                </div>
+                <div id="lock-now-row" class="lock-now-row hidden">
+                  <button id="lock-now-button" class="button-outline" type="button">Lock now</button>
+                  <span class="card-sub tight">Try the locked experience — your PIN unlocks it.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Activity -->
+          <section id="section-activity" class="section hidden" data-title="Activity">
+            <div class="section-head-row">
+              <div class="section-intro">
+                <h2 class="section-title">Activity</h2>
+                <p class="section-sub">What Cancel It has filtered for you. Stored only on this device.</p>
+              </div>
+              <button id="reset-stats-button" class="button-danger-ghost" type="button">Reset history</button>
+            </div>
+            <div class="stat-grid">
+              <div class="card stat-tile"><span class="tile-label">Blocked today</span><span id="stat-today" class="stat-value">0</span></div>
+              <div class="card stat-tile"><span class="tile-label">This week</span><span id="stat-week" class="stat-value">0</span></div>
+              <div class="card stat-tile"><span class="tile-label">All time</span><span id="stat-total" class="stat-value">0</span></div>
+              <div class="card stat-tile"><span class="tile-label">Keywords tracked</span><span id="stat-keywords" class="stat-value">0</span></div>
+            </div>
+            <div class="stat-grid wide">
+              <div class="card stat-tile"><span class="tile-label">Most blocked keyword</span><span id="stat-top-keyword" class="stat-highlight">—</span></div>
+              <div class="card stat-tile"><span class="tile-label">Most filtered website</span><span id="stat-top-site" class="stat-highlight">—</span></div>
+            </div>
+            <div class="card">
+              <p class="card-title">Recently filtered</p>
+              <div id="recent-list" class="recent-list"></div>
+              <p id="recent-empty" class="empty-note">History is empty.</p>
+            </div>
+          </section>
+
+          <!-- Support -->
+          <section id="section-support" class="section hidden" data-title="Support">
+            <div class="section-intro">
+              <h2 class="section-title">Support &amp; about</h2>
+              <p class="section-sub"><span id="version-label">Cancel It</span> · Made by one person. These are all optional.</p>
+            </div>
+            <div class="card support-card">
+              <a class="support-row" href="https://umarafzal11.app.n8n.cloud/form/49baa5e5-c3ba-4595-aae4-c72771f2947f" target="_blank" rel="noreferrer noopener">
+                <span>Share feedback or report a problem</span><span aria-hidden="true">↗</span>
+              </a>
+              <a id="rate-link-support" class="support-row" href="https://chrome.google.com/webstore" target="_blank" rel="noreferrer noopener">
+                <span>Rate Cancel It on the Chrome Web Store</span><span aria-hidden="true">↗</span>
+              </a>
+              <div class="tip-block">
+                <p class="card-title">Leave a tip</p>
+                <div class="tip-row">
+                  <a class="tip-button" href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&amp;business=umarafzal911%40gmail.com&amp;currency_code=USD&amp;amount=1&amp;item_name=Cancel%20It%20%241%20tip" target="_blank" rel="noreferrer noopener">$1</a>
+                  <a class="tip-button" href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&amp;business=umarafzal911%40gmail.com&amp;currency_code=USD&amp;amount=5&amp;item_name=Cancel%20It%20%245%20tip" target="_blank" rel="noreferrer noopener">$5</a>
+                  <a class="tip-button" href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&amp;business=umarafzal911%40gmail.com&amp;currency_code=USD&amp;amount=10&amp;item_name=Cancel%20It%20%2410%20tip" target="_blank" rel="noreferrer noopener">$10</a>
+                  <a class="tip-button" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&amp;business=umarafzal911%40gmail.com&amp;currency_code=USD&amp;item_name=Cancel%20It%20custom%20tip" target="_blank" rel="noreferrer noopener">Custom</a>
+                  <a class="tip-button" href="https://buymeacoffee.com/umarafzal" target="_blank" rel="noreferrer noopener">Buy me a coffee</a>
+                </div>
+              </div>
+            </div>
+            <div class="privacy-footnote">
+              <strong>Privacy note.</strong> Cancel It never uploads page text, blocked keywords, URLs, PINs, history, or images. Anonymous usage analytics (which settings are popular) are being prepared but are <strong>not yet active</strong> — nothing is sent today.
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="save-bar" class="save-bar hidden">
+        <span class="save-bar-label">Unsaved changes</span>
+        <div class="save-bar-actions">
+          <button id="discard-button" class="save-bar-discard" type="button">Discard</button>
+          <button id="save-button" class="save-bar-save" type="button">Save</button>
+        </div>
+      </div>
+      <div id="saved-toast" class="saved-toast hidden" role="status">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5 11-11"></path></svg>
+        <span id="saved-toast-text">Changes saved</span>
+      </div>
+    </main>
+
+    <dialog id="help-modal" class="help-modal">
+      <div class="help-shell">
+        <div class="help-head">
+          <h2 id="help-title" class="help-title">Example</h2>
+          <button id="help-close" class="help-close" type="button" aria-label="Close help">✕</button>
+        </div>
+        <p id="help-copy" class="help-copy"></p>
+        <figure class="help-figure">
+          <img id="help-image" src="" alt="">
+        </figure>
+      </div>
+    </dialog>
+
+    <script src="../chrome-stub.js"></script><script src="../../extension/firebase-config.js"></script>
+    <script src="../../extension/analytics.js"></script>
+    <script src="../../extension/options.js"></script>
+  </body>
+</html>

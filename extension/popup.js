@@ -1,10 +1,12 @@
 const STORAGE_KEY = "cancelItSettings";
 const LOCK_STATE_KEY = "cancelItLockState";
 const PAGE_SUMMARY_STORAGE_KEY = "cancelItPageSummaries";
+const IMMEDIATE_RELOCK_WINDOW_MS = 10 * 60 * 1000;
 const DEFAULT_SETTINGS = {
   enabled: true,
   mode: "blur",
   matchScope: "inline",
+  enabledPacks: [],
   parentLock: {
     enabled: false,
     pinHash: "",
@@ -13,87 +15,68 @@ const DEFAULT_SETTINGS = {
   }
 };
 
-const enabledInput = document.getElementById("popup-enabled");
-const modeInput = document.getElementById("popup-mode");
-const scopeInput = document.getElementById("popup-scope");
-const saveButton = document.getElementById("save-popup");
+const toggleButton = document.getElementById("popup-toggle");
+const lockedView = document.getElementById("popup-locked");
+const mainView = document.getElementById("popup-main");
+const heroNode = document.getElementById("popup-hero");
+const headlineNode = document.getElementById("popup-headline");
+const subNode = document.getElementById("popup-sub");
+const siteRowNode = document.getElementById("popup-site-row");
+const siteNode = document.getElementById("popup-site");
+const blocksNode = document.getElementById("popup-blocks");
+const countNode = document.getElementById("popup-count");
+const chipsNode = document.getElementById("popup-chips");
 const openOptionsButton = document.getElementById("open-options");
-const siteStatusNode = document.getElementById("site-status");
-const popupLockScreen = document.getElementById("popup-lock-screen");
-const popupUnlockPinInput = document.getElementById("popup-unlock-pin");
-const popupUnlockButton = document.getElementById("popup-unlock");
-const popupLockStatusNode = document.getElementById("popup-lock-status");
-const blockedCountPill = document.getElementById("blocked-count-pill");
-const popupReasonsEmptyNode = document.getElementById("popup-reasons-empty");
-const popupReasonsListNode = document.getElementById("popup-reasons-list");
+const pinInput = document.getElementById("popup-pin");
+const pinErrorNode = document.getElementById("popup-pin-error");
+const unlockButton = document.getElementById("popup-unlock");
+const rateLink = document.getElementById("rate-link");
+const supportLink = document.getElementById("support-link");
 const analytics = window.CancelItAnalytics || { track: () => null, summarizeSettings: () => ({}) };
+
 let currentSettings = structuredClone(DEFAULT_SETTINGS);
 let lockState = { unlockedUntil: 0 };
 let currentTabUrl = "";
+let currentSummary = null;
 
-async function getCurrentHostname() {
+function mergeSettings(raw) {
+  return {
+    ...structuredClone(DEFAULT_SETTINGS),
+    ...(raw || {}),
+    parentLock: {
+      ...structuredClone(DEFAULT_SETTINGS.parentLock),
+      ...(raw?.parentLock || {})
+    }
+  };
+}
+
+async function getCurrentTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab?.url) {
-      return "";
-    }
-
-    if (tab.url.startsWith("chrome-extension://")) {
-      return "";
+    if (!tab?.url || tab.url.startsWith("chrome-extension://")) {
+      return null;
     }
 
     currentTabUrl = tab.url;
-    const url = new URL(tab.url);
-    return url.hostname;
+    return new URL(tab.url);
   } catch (_error) {
     currentTabUrl = "";
-    return "";
+    return null;
   }
 }
 
 async function loadCurrentPageSummary() {
-  const result = await chrome.storage.local.get([PAGE_SUMMARY_STORAGE_KEY]);
-  const summaries = result[PAGE_SUMMARY_STORAGE_KEY] || {};
   if (!currentTabUrl) {
     return null;
   }
 
+  const result = await chrome.storage.local.get([PAGE_SUMMARY_STORAGE_KEY]);
+  const summaries = result[PAGE_SUMMARY_STORAGE_KEY] || {};
   return summaries[currentTabUrl] || null;
 }
 
-function renderPageSummary(summary) {
-  const totalBlocked = Number(summary?.totalBlocked || 0);
-  blockedCountPill.textContent = `${totalBlocked} blocked`;
-
-  if (!summary || !summary.reasons || !Object.keys(summary.reasons).length) {
-    popupReasonsEmptyNode.classList.remove("hidden");
-    popupReasonsListNode.classList.add("hidden");
-    popupReasonsListNode.innerHTML = "";
-    return;
-  }
-
-  const sortedReasons = Object.entries(summary.reasons)
-    .sort((left, right) => right[1] - left[1]);
-
-  popupReasonsListNode.innerHTML = sortedReasons.map(([label, count]) => `
-    <div class="popup-reason-row">
-      <strong>${label}</strong>
-      <span class="popup-reason-count">${count}</span>
-    </div>
-  `).join("");
-  popupReasonsEmptyNode.classList.add("hidden");
-  popupReasonsListNode.classList.remove("hidden");
-}
-
-function applySettings(settings) {
-  currentSettings = settings;
-  enabledInput.checked = settings.enabled;
-  modeInput.value = settings.mode || DEFAULT_SETTINGS.mode;
-  scopeInput.value = settings.matchScope || DEFAULT_SETTINGS.matchScope;
-}
-
 function isLockEnabled() {
-  return currentSettings.parentLock?.enabled && currentSettings.parentLock?.pinHash;
+  return Boolean(currentSettings.parentLock?.enabled && currentSettings.parentLock?.pinHash);
 }
 
 function isCurrentlyUnlocked() {
@@ -104,13 +87,67 @@ function isCurrentlyUnlocked() {
   return Boolean(lockState.unlockedUntil && lockState.unlockedUntil > Date.now());
 }
 
-function setLockedUi() {
+function describeWatchTargets() {
+  const packCount = (currentSettings.enabledPacks || []).length;
+  if (packCount === 0) {
+    return "Watching for your blocklist.";
+  }
+
+  return `Watching for ${packCount} pack${packCount === 1 ? "" : "s"} and your blocklist.`;
+}
+
+function renderHero() {
+  const enabled = Boolean(currentSettings.enabled);
+  heroNode.classList.toggle("paused", !enabled);
+  toggleButton.setAttribute("aria-checked", String(enabled));
+  headlineNode.textContent = enabled ? "Filtering is on" : "Filtering is paused";
+  subNode.textContent = enabled
+    ? describeWatchTargets()
+    : "You're seeing everything. Flip the switch to resume.";
+}
+
+function renderSummary() {
+  const summary = currentSummary;
+  const totalBlocked = Number(summary?.totalBlocked || 0);
+  const reasons = summary?.reasons || {};
+  const hasBlocks = currentSettings.enabled && totalBlocked > 0;
+
+  blocksNode.classList.toggle("hidden", !hasBlocks);
+  if (!hasBlocks) {
+    if (currentSettings.enabled && currentTabUrl) {
+      subNode.textContent = summary
+        ? "Nothing on this page matched your list."
+        : describeWatchTargets();
+    }
+    return;
+  }
+
+  countNode.textContent = `${totalBlocked} item${totalBlocked === 1 ? "" : "s"} filtered on this page`;
+  chipsNode.textContent = "";
+  const sortedReasons = Object.entries(reasons).sort((left, right) => right[1] - left[1]);
+  for (const [label, count] of sortedReasons) {
+    const chip = document.createElement("span");
+    chip.className = "popup-chip";
+    chip.textContent = `${label} · ${count}`;
+    chipsNode.appendChild(chip);
+  }
+}
+
+function renderLockState() {
   const locked = !isCurrentlyUnlocked();
-  popupLockScreen.classList.toggle("hidden", !locked);
-  enabledInput.disabled = locked;
-  modeInput.disabled = locked;
-  scopeInput.disabled = locked;
-  saveButton.disabled = locked;
+  lockedView.classList.toggle("hidden", !locked);
+  mainView.classList.toggle("hidden", locked);
+  toggleButton.classList.toggle("hidden", locked);
+  if (!locked) {
+    pinInput.value = "";
+    pinErrorNode.classList.add("hidden");
+  }
+}
+
+function render() {
+  renderHero();
+  renderSummary();
+  renderLockState();
 }
 
 async function sha256(input) {
@@ -119,94 +156,120 @@ async function sha256(input) {
   return Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+function showPinError(message) {
+  pinErrorNode.textContent = message;
+  pinErrorNode.classList.remove("hidden");
+}
+
 async function unlockPopup(pin) {
   const salt = currentSettings.parentLock?.pinSalt;
   const expected = currentSettings.parentLock?.pinHash;
   const computed = await sha256(`${salt}:${pin}`);
   if (computed !== expected) {
-    popupLockStatusNode.textContent = "Incorrect PIN.";
+    showPinError("That PIN doesn't match.");
+    pinInput.value = "";
     return;
   }
 
   const minutes = Number(currentSettings.parentLock?.relockMinutes || 0);
-  lockState = { unlockedUntil: minutes === 0 ? Date.now() : Date.now() + minutes * 60 * 1000 };
+  const windowMs = minutes === 0 ? IMMEDIATE_RELOCK_WINDOW_MS : minutes * 60 * 1000;
+  lockState = { unlockedUntil: Date.now() + windowMs };
   chrome.storage.local.set({ [LOCK_STATE_KEY]: lockState }, () => {
-    popupUnlockPinInput.value = "";
-    popupLockStatusNode.textContent = "";
-    setLockedUi();
+    render();
   });
 }
 
-chrome.storage.sync.get([STORAGE_KEY], async (result) => {
-  const settings = {
-    ...DEFAULT_SETTINGS,
-    ...(result[STORAGE_KEY] || {}),
-    parentLock: {
-      ...DEFAULT_SETTINGS.parentLock,
-      ...(result[STORAGE_KEY]?.parentLock || {})
-    }
-  };
-  applySettings(settings);
-  const localResult = await chrome.storage.local.get([LOCK_STATE_KEY]);
-  lockState = { unlockedUntil: localResult[LOCK_STATE_KEY]?.unlockedUntil || 0 };
-  setLockedUi();
-  const hostname = await getCurrentHostname();
-  siteStatusNode.textContent = hostname ? `Current site: ${hostname}` : "Current site unavailable";
-  const summary = await loadCurrentPageSummary();
-  renderPageSummary(summary);
-});
-
-saveButton.addEventListener("click", () => {
+function persistEnabled(enabled) {
   chrome.storage.sync.get([STORAGE_KEY], (result) => {
-    const merged = {
-      ...DEFAULT_SETTINGS,
-      ...(result[STORAGE_KEY] || {}),
-      enabled: enabledInput.checked,
-      mode: modeInput.value,
-      matchScope: scopeInput.value
-    };
-
+    const merged = { ...(result[STORAGE_KEY] || {}), enabled };
     chrome.storage.sync.set({ [STORAGE_KEY]: merged }, () => {
-      analytics.track("settings_saved", {
-        ...analytics.summarizeSettings(merged),
-        save_surface: "popup",
-        relock_behavior: merged.parentLock?.enabled
-          ? (Number(merged.parentLock?.relockMinutes || 0) === 0 ? "immediate" : "timed")
-          : "disabled"
-      });
-      saveButton.textContent = "Saved";
-      if (currentSettings.parentLock?.enabled && Number(currentSettings.parentLock?.relockMinutes || 0) === 0) {
-        lockState = { unlockedUntil: 0 };
-        chrome.storage.local.set({ [LOCK_STATE_KEY]: lockState }, setLockedUi);
+      if (chrome.runtime.lastError) {
+        currentSettings.enabled = !enabled;
+        render();
+        return;
       }
-      window.setTimeout(() => {
-        saveButton.textContent = "Save";
-      }, 1200);
+
+      analytics.track("filtering_toggled", {
+        ...analytics.summarizeSettings(mergeSettings(merged)),
+        toggle_surface: "popup"
+      });
     });
   });
+}
+
+toggleButton.addEventListener("click", () => {
+  if (!isCurrentlyUnlocked()) {
+    return;
+  }
+
+  currentSettings.enabled = !currentSettings.enabled;
+  render();
+  persistEnabled(currentSettings.enabled);
 });
 
 openOptionsButton.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-popupUnlockButton.addEventListener("click", async () => {
-  if (!popupUnlockPinInput.value.trim()) {
-    popupLockStatusNode.textContent = "Enter PIN.";
+supportLink.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#support") });
+});
+
+unlockButton.addEventListener("click", async () => {
+  const pin = pinInput.value.trim();
+  if (!pin) {
+    showPinError("Enter the PIN.");
     return;
   }
 
-  await unlockPopup(popupUnlockPinInput.value.trim());
+  await unlockPopup(pin);
+});
+
+pinInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    unlockButton.click();
+  }
+});
+
+pinInput.addEventListener("input", () => {
+  pinInput.value = pinInput.value.replace(/\D/g, "");
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "sync" && changes[STORAGE_KEY]) {
+    currentSettings = mergeSettings(changes[STORAGE_KEY].newValue);
+    render();
+  }
+
   if (areaName === "local" && changes[LOCK_STATE_KEY]) {
     lockState = { unlockedUntil: changes[LOCK_STATE_KEY].newValue?.unlockedUntil || 0 };
-    setLockedUi();
+    render();
   }
 
   if (areaName === "local" && changes[PAGE_SUMMARY_STORAGE_KEY]) {
     const summaries = changes[PAGE_SUMMARY_STORAGE_KEY].newValue || {};
-    renderPageSummary(currentTabUrl ? summaries[currentTabUrl] || null : null);
+    currentSummary = currentTabUrl ? summaries[currentTabUrl] || null : null;
+    render();
   }
 });
+
+async function init() {
+  if (chrome.runtime?.id) {
+    rateLink.href = `https://chrome.google.com/webstore/detail/${chrome.runtime.id}/reviews`;
+  }
+
+  const syncResult = await chrome.storage.sync.get([STORAGE_KEY]);
+  currentSettings = mergeSettings(syncResult[STORAGE_KEY]);
+
+  const localResult = await chrome.storage.local.get([LOCK_STATE_KEY]);
+  lockState = { unlockedUntil: localResult[LOCK_STATE_KEY]?.unlockedUntil || 0 };
+
+  const tabUrl = await getCurrentTab();
+  siteRowNode.classList.toggle("hidden", !tabUrl);
+  siteNode.textContent = tabUrl ? tabUrl.hostname : "—";
+
+  currentSummary = await loadCurrentPageSummary();
+  render();
+}
+
+init();
