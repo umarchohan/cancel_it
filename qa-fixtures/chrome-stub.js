@@ -60,7 +60,9 @@
     }
   };
 
-  function makeArea(data) {
+  const changeListeners = [];
+
+  function makeArea(data, areaName) {
     return {
       get(keys, cb) {
         const out = {};
@@ -71,8 +73,16 @@
         return Promise.resolve(out);
       },
       set(items, cb) {
+        const changes = {};
+        for (const [key, value] of Object.entries(items)) {
+          changes[key] = { oldValue: data[key], newValue: JSON.parse(JSON.stringify(value)) };
+        }
         Object.assign(data, JSON.parse(JSON.stringify(items)));
         if (cb) cb();
+        // Fire onChanged async, like real Chrome does.
+        setTimeout(() => {
+          for (const listener of changeListeners) listener(changes, areaName);
+        }, 0);
         return Promise.resolve();
       }
     };
@@ -80,9 +90,9 @@
 
   window.chrome = {
     storage: {
-      sync: makeArea(syncData),
-      local: makeArea(localData),
-      onChanged: { addListener() {} }
+      sync: makeArea(syncData, "sync"),
+      local: makeArea(localData, "local"),
+      onChanged: { addListener(fn) { changeListeners.push(fn); } }
     },
     runtime: {
       id: "preview-extension-id",

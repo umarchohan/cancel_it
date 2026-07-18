@@ -187,7 +187,7 @@ const dom = {
 };
 
 let settingsState = structuredClone(DEFAULT_SETTINGS);
-let savedSnapshot = "";
+let hasUnsavedChanges = false;
 let assets = { placeholderImage: "" };
 let lockState = { unlockedUntil: 0 };
 let statsCache = null;
@@ -286,25 +286,20 @@ async function hashPin(pin, salt) {
 
 /* ---------- dirty tracking ---------- */
 
-function collectDraft() {
-  return {
-    settings: {
-      ...settingsState,
-      tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms)
-    },
-    pinDraft: {
-      pin: dom.pinInput.value.trim(),
-      pinConfirm: dom.pinConfirm.value.trim()
-    }
-  };
-}
-
+// Dirty state is an explicit flag: set by every mutating control, cleared on
+// save/discard/reload. Never inferred by comparing serialized settings — that
+// broke when values drifted through the chrome.storage round-trip.
 function isDirty() {
-  return JSON.stringify(collectDraft()) !== savedSnapshot;
+  return hasUnsavedChanges;
 }
 
-function snapshot() {
-  savedSnapshot = JSON.stringify(collectDraft());
+function markDirty() {
+  hasUnsavedChanges = true;
+  renderSaveBar();
+}
+
+function clearDirty() {
+  hasUnsavedChanges = false;
 }
 
 function getSaveIssue() {
@@ -331,7 +326,7 @@ function getSaveIssue() {
   return "";
 }
 
-function updateSaveBar() {
+function renderSaveBar() {
   const dirty = isDirty();
   dom.saveBar.classList.toggle("hidden", !dirty || isLockedNow());
   if (dirty) {
@@ -487,7 +482,7 @@ function renderBlocklist() {
       settingsState.blockedTerms = settingsState.blockedTerms.filter((entry) => entry !== term);
       renderBlocklist();
       renderOverviewTiles();
-      updateSaveBar();
+      markDirty();
     });
     chip.appendChild(remove);
     dom.termChips.appendChild(chip);
@@ -528,7 +523,7 @@ function renderTempList() {
     remove.addEventListener("click", () => {
       settingsState.tempMutedTerms = settingsState.tempMutedTerms.filter((item) => item.id !== entry.id);
       renderTempList();
-      updateSaveBar();
+      markDirty();
     });
     side.appendChild(remove);
     row.appendChild(side);
@@ -564,7 +559,7 @@ function addPackDraftTerm(packId) {
 
   packDrafts[packId] = "";
   renderPacks();
-  updateSaveBar();
+  markDirty();
 }
 
 function renderPacks() {
@@ -616,7 +611,7 @@ function renderPacks() {
       });
       renderPacks();
       renderOverviewTiles();
-      updateSaveBar();
+      markDirty();
     }));
 
     card.appendChild(row);
@@ -656,7 +651,7 @@ function renderPacks() {
             delete settingsState.packCustomTerms[packId];
           }
           renderPacks();
-          updateSaveBar();
+          markDirty();
         });
         chip.appendChild(remove);
         customWrap.appendChild(chip);
@@ -695,7 +690,7 @@ function renderPacks() {
           openPacks.delete(packId);
           renderPacks();
           renderOverviewTiles();
-          updateSaveBar();
+          markDirty();
         });
         addRow.appendChild(deleteButton);
       }
@@ -748,11 +743,11 @@ function renderSiteRules() {
     modeSelect.addEventListener("change", () => {
       rule.mode = modeSelect.value;
       scopeSelect.disabled = rule.mode === "off" || rule.mode === "page-blur";
-      updateSaveBar();
+      markDirty();
     });
     scopeSelect.addEventListener("change", () => {
       rule.matchScope = scopeSelect.value;
-      updateSaveBar();
+      markDirty();
     });
 
     row.appendChild(modeSelect);
@@ -761,7 +756,7 @@ function renderSiteRules() {
     row.appendChild(makeSwitch(rule.enabled !== false, `Rule for ${rule.pattern} enabled`, () => {
       rule.enabled = rule.enabled === false;
       renderSiteRules();
-      updateSaveBar();
+      markDirty();
     }, true));
 
     const remove = el("button", "link-danger", "Delete");
@@ -770,7 +765,7 @@ function renderSiteRules() {
     remove.addEventListener("click", () => {
       settingsState.siteRules = settingsState.siteRules.filter((entry) => entry.id !== rule.id);
       renderSiteRules();
-      updateSaveBar();
+      markDirty();
     });
     row.appendChild(remove);
 
@@ -823,7 +818,7 @@ function renderFamilyControls() {
     chip.addEventListener("click", () => {
       settingsState.parentLock.relockMinutes = option.minutes;
       renderFamilyControls();
-      updateSaveBar();
+      markDirty();
     });
     dom.relockOptions.appendChild(chip);
   }
@@ -910,7 +905,7 @@ function renderAll() {
   renderModeCards();
   renderFamilyControls();
   renderLockScreen();
-  updateSaveBar();
+  renderSaveBar();
 }
 
 /* ---------- settings load/save ---------- */
@@ -932,7 +927,7 @@ function applySettings(rawSettings) {
 
   dom.pinInput.value = "";
   dom.pinConfirm.value = "";
-  snapshot();
+  clearDirty();
   renderAll();
   if (statsCache) {
     renderStats(statsCache);
@@ -999,7 +994,7 @@ async function saveSettings() {
 
     dom.pinInput.value = "";
     dom.pinConfirm.value = "";
-    snapshot();
+    clearDirty();
 
     analytics.track("settings_saved", {
       ...analytics.summarizeSettings(collectSettings()),
@@ -1054,7 +1049,7 @@ function saveAssets(message) {
 dom.headerToggle.addEventListener("click", () => {
   settingsState.enabled = !settingsState.enabled;
   renderGlobalStatus();
-  updateSaveBar();
+  markDirty();
 });
 
 for (const item of dom.navItems) {
@@ -1076,7 +1071,7 @@ dom.addTermButton.addEventListener("click", () => {
     settingsState.blockedTerms = [...(settingsState.blockedTerms || []), term];
     renderBlocklist();
     renderOverviewTiles();
-    updateSaveBar();
+    markDirty();
   }
   dom.addTermInput.value = "";
   dom.addTermInput.focus();
@@ -1116,7 +1111,7 @@ dom.addTempButton.addEventListener("click", () => {
     temp_mute_count: settingsState.tempMutedTerms.length
   });
   renderTempList();
-  updateSaveBar();
+  markDirty();
 });
 
 dom.tempTermInput.addEventListener("keydown", (event) => {
@@ -1187,7 +1182,7 @@ dom.createPackButton.addEventListener("click", () => {
 
   renderPacks();
   renderOverviewTiles();
-  updateSaveBar();
+  markDirty();
 });
 
 dom.addRuleButton.addEventListener("click", () => {
@@ -1215,7 +1210,7 @@ dom.addRuleButton.addEventListener("click", () => {
       site_rule_count: settingsState.siteRules.length
     });
     renderSiteRules();
-    updateSaveBar();
+    markDirty();
   }
   dom.siteDomain.value = "";
 });
@@ -1232,7 +1227,7 @@ function bindOptionCards(cards, datasetKey, apply) {
     const pick = () => {
       apply(card.dataset[datasetKey]);
       renderModeCards();
-      updateSaveBar();
+      markDirty();
     };
     card.addEventListener("click", pick);
     card.addEventListener("keydown", (event) => {
@@ -1281,13 +1276,13 @@ dom.pinToggle.addEventListener("click", () => {
   dom.pinInput.value = "";
   dom.pinConfirm.value = "";
   renderFamilyControls();
-  updateSaveBar();
+  markDirty();
 });
 
 for (const input of [dom.pinInput, dom.pinConfirm]) {
   input.addEventListener("input", () => {
     input.value = input.value.replace(/\D/g, "");
-    updateSaveBar();
+    markDirty();
   });
 }
 
@@ -1371,7 +1366,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       if (typeof incoming.enabled === "boolean" && incoming.enabled !== settingsState.enabled) {
         settingsState.enabled = incoming.enabled;
         renderGlobalStatus();
-        updateSaveBar();
+        renderSaveBar();
       }
     }
   }
