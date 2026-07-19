@@ -80,7 +80,9 @@ Select: **No, I am not using remote code.** (All JavaScript is bundled in the pa
 
 ### Data usage section
 
-- Check **none** of the data-collection categories — the extension does not collect or transmit any user data. Page content is read and discarded in-memory on the user's device; settings and stats stay in browser storage.
+- **Versions ≤0.2.1 (no analytics)**: check **none** of the data-collection categories — the extension does not collect or transmit any user data. Page content is read and discarded in-memory on the user's device; settings and stats stay in browser storage.
+- **Versions ≥0.2.2 (opt-in GA4 analytics shipped)**: check **User activity** (feature-usage events such as which filtering style is selected — sent only if the user turns on "Share anonymous usage stats", which is off by default; contains no page text, URLs, or PINs). A hosted **privacy policy URL** becomes required — host PRIVACY.html (e.g. GitHub Pages) and update it to describe the opt-in analytics before submitting.
+- **Versions ≥0.2.3**: opted-in analytics additionally includes user-entered pack content (custom pack names and keywords added to packs, with event timestamps). Because users can type personal terms (including people's names) there, ALSO check **Personally identifiable information** to be safe, and state explicitly in the privacy policy that pack names/keywords are collected when usage sharing is on. The user's main blocklist is still never collected.
 - Tick all three certification checkboxes (no sale of data, no use unrelated to single purpose, no use for creditworthiness) and the developer programme policies certification.
 
 ### Listing form

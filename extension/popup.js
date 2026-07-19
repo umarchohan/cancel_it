@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   mode: "blur",
   matchScope: "inline",
   enabledPacks: [],
+  shareUsageStats: false,
   parentLock: {
     enabled: false,
     pinHash: "",
