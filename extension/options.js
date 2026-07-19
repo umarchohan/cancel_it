@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS = {
   packCustomTerms: {},
   tempMutedTerms: [],
   siteRules: [],
+  shareUsageStats: false,
   parentLock: {
     enabled: false,
     pinHash: "",
@@ -162,6 +163,7 @@ const dom = {
   relockNote: document.getElementById("relock-note"),
   lockNowRow: document.getElementById("lock-now-row"),
   lockNowButton: document.getElementById("lock-now-button"),
+  analyticsToggle: document.getElementById("analytics-toggle"),
   resetStatsButton: document.getElementById("reset-stats-button"),
   statToday: document.getElementById("stat-today"),
   statWeek: document.getElementById("stat-week"),
@@ -552,7 +554,9 @@ function addPackDraftTerm(packId) {
   if (!existing.includes(term)) {
     settingsState.packCustomTerms[packId] = [...existing, term];
     analytics.track("pack_custom_term_added", {
-      pack_id: packId,
+      pack_id: PACKS[packId] ? packId : "custom",
+      pack_name: getAllPacks()[packId]?.label || "",
+      keyword: term,
       custom_term_count_for_pack: settingsState.packCustomTerms[packId].length
     });
   }
@@ -605,7 +609,7 @@ function renderPacks() {
         settingsState.enabledPacks = Array.from(new Set([...settingsState.enabledPacks, packId]));
       }
       analytics.track("pack_toggle_changed", {
-        pack_id: packId,
+        pack_id: PACKS[packId] ? packId : "custom",
         enabled: !isOn,
         enabled_pack_count: settingsState.enabledPacks.length
       });
@@ -895,8 +899,13 @@ function renderStats(stats) {
   }
 }
 
+function renderAnalyticsToggle() {
+  dom.analyticsToggle.setAttribute("aria-checked", String(Boolean(settingsState.shareUsageStats)));
+}
+
 function renderAll() {
   renderGlobalStatus();
+  renderAnalyticsToggle();
   renderOverviewTiles();
   renderBlocklist();
   renderTempList();
@@ -972,6 +981,7 @@ function collectSettings() {
     packCustomTerms: settingsState.packCustomTerms,
     tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms),
     siteRules: settingsState.siteRules,
+    shareUsageStats: Boolean(settingsState.shareUsageStats),
     parentLock: settingsState.parentLock
   };
 }
@@ -996,6 +1006,9 @@ async function saveSettings() {
     dom.pinConfirm.value = "";
     clearDirty();
 
+    if (analytics.setConsent) {
+      analytics.setConsent(Boolean(settingsState.shareUsageStats));
+    }
     analytics.track("settings_saved", {
       ...analytics.summarizeSettings(collectSettings()),
       save_surface: "options",
@@ -1174,11 +1187,19 @@ dom.createPackButton.addEventListener("click", () => {
   dom.newPackForm.classList.add("hidden");
 
   analytics.track("custom_pack_created", {
-    pack_id: packId,
+    pack_name: label,
     initial_term_count: terms.length,
     enabled_pack_count: settingsState.enabledPacks.length,
     custom_pack_count: Object.keys(settingsState.customPacks).length
   });
+  for (const term of terms) {
+    analytics.track("pack_custom_term_added", {
+      pack_id: "custom",
+      pack_name: label,
+      keyword: term,
+      custom_term_count_for_pack: terms.length
+    });
+  }
 
   renderPacks();
   renderOverviewTiles();
@@ -1288,6 +1309,12 @@ for (const input of [dom.pinInput, dom.pinConfirm]) {
 
 dom.lockNowButton.addEventListener("click", () => {
   clearUnlockWindow();
+});
+
+dom.analyticsToggle.addEventListener("click", () => {
+  settingsState.shareUsageStats = !settingsState.shareUsageStats;
+  renderAnalyticsToggle();
+  markDirty();
 });
 
 dom.unlockButton.addEventListener("click", async () => {
