@@ -3,15 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cancel It Privacy</title>
+    <title>Cancel It Privacy Policy</title>
     <style>
       :root {
-        color-scheme: dark;
-        --bg: #101010;
-        --panel: #181818;
-        --text: #f5f5f5;
-        --muted: #b5b5b5;
-        --accent: #ff6b3d;
+        color-scheme: light;
+        --bg: #f4f3ef;
+        --panel: #ffffff;
+        --border: #e4e2dc;
+        --text: #1f2421;
+        --muted: #6b7268;
+        --accent: #0e7a6b;
       }
 
       * { box-sizing: border-box; }
@@ -20,59 +21,141 @@
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--text);
-        background:
-          radial-gradient(circle at top, rgba(255, 107, 61, 0.16), transparent 28%),
-          linear-gradient(180deg, #0d0d0d, #171717 52%, #101010);
+        background: var(--bg);
       }
 
       main {
-        width: min(880px, calc(100% - 32px));
-        margin: 48px auto;
-        padding: 32px;
-        border-radius: 24px;
-        background: rgba(24, 24, 24, 0.94);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        width: min(760px, calc(100% - 32px));
+        margin: 48px auto 80px;
+        padding: 40px;
+        border-radius: 20px;
+        background: var(--panel);
+        border: 1px solid var(--border);
       }
 
-      h1, h2 { margin-top: 0; }
-      h2 { margin-top: 28px; color: var(--accent); }
-      p, li { color: var(--muted); line-height: 1.6; }
-      a { color: #ffd0c2; }
+      h1 { margin-top: 0; font-size: 28px; }
+      h2 { margin-top: 36px; font-size: 19px; color: var(--accent); }
+      p, li { color: var(--muted); line-height: 1.65; }
+      li { margin-bottom: 6px; }
+      a { color: var(--accent); }
+      .updated { color: var(--muted); font-size: 14px; margin-top: -8px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+      th { color: var(--text); }
+      td { color: var(--muted); }
+      .note { background: #edf4f1; border: 1px solid #cbe2da; border-radius: 12px; padding: 14px 18px; margin-top: 16px; }
+      .note p { color: #33463f; margin: 0; }
     </style>
   </head>
   <body>
     <main>
-      <h1>Cancel It Privacy Summary</h1>
+      <h1>Cancel It — Privacy Policy</h1>
+      <p class="updated">Last updated: July 2026</p>
+
       <p>
-        Cancel It stores your blocked terms in Chrome storage so the extension can apply your
-        settings across pages in your browser profile.
+        Cancel It is a Chrome extension that hides, blurs, or replaces words and topics you choose
+        on the webpages you visit. This policy explains exactly what data the extension accesses,
+        what it stores, and what — if anything — ever leaves your device.
       </p>
 
-      <h2>What the extension accesses</h2>
-      <ul>
-        <li>Visible page text and image metadata on pages you visit</li>
-        <li>Your blocked term list and filtering mode in Chrome storage</li>
-      </ul>
-
-      <h2>What the extension does not do</h2>
-      <ul>
-        <li>Does not send blocked terms or page content to an external server</li>
-        <li>Does not create user accounts</li>
-        <li>Does not sell personal data</li>
-        <li>Does not use advertising or analytics SDKs</li>
-      </ul>
-
-      <h2>Data retention</h2>
+      <h2>Data the extension reads</h2>
       <p>
-        Your settings remain in your Chrome profile until you edit them, clear extension storage,
-        or uninstall the extension.
+        To find your chosen words on a page, Cancel It's content script reads the visible text and
+        image metadata (alt text, titles) of pages you visit. This scanning happens entirely inside
+        your browser. Page content is never transmitted anywhere, stored outside your browser, or
+        seen by us.
       </p>
 
-      <h2>Important note for store listing</h2>
+      <h2>Data the extension stores</h2>
       <p>
-        Chrome Web Store publication still requires a public privacy policy URL. This bundled page
-        is useful as source content, but you should also host the same policy on your website or a
-        public document URL before submission.
+        The following is stored only in your Chrome browser profile (via <code>chrome.storage</code>),
+        synced by Chrome across your own signed-in devices the same way your bookmarks are — never
+        sent to our servers:
+      </p>
+      <ul>
+        <li>Your blocklist terms, enabled keyword packs, and custom packs you create</li>
+        <li>Per-site filtering rules and your chosen filtering style</li>
+        <li>A salted hash of your optional parental-lock PIN (never the PIN itself)</li>
+        <li>Local counters of how much content has been filtered, and a custom placeholder image if you set one</li>
+      </ul>
+
+      <h2>Anonymous usage statistics (opt-in, off by default)</h2>
+      <p>
+        Settings → Support has a toggle called <strong>"Share anonymous usage stats."</strong> It is
+        off by default. If you turn it on, Cancel It sends anonymous feature-usage events to Google
+        Analytics (GA4) so we can see which features are actually used and improve the built-in
+        keyword packs. This is the only way any data ever leaves your device.
+      </p>
+      <table>
+        <tr><th>Sent when the toggle is on</th><th>Never sent</th></tr>
+        <tr>
+          <td>
+            Which filtering style / scope you use, whether a pack is turned on or off, custom pack
+            names, keywords you add to a pack, and counts (e.g. number of site rules)
+          </td>
+          <td>
+            Your main blocklist, temporary mutes, any page text, any URL or website you visit, your
+            PIN, or your identity
+          </td>
+        </tr>
+      </table>
+      <p>
+        These events are tied to a random identifier generated on your device — not your Google
+        account, email, or any other identity. Google's use of this data is governed by the
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer noopener">Google Privacy Policy</a>.
+        You can turn the toggle off at any time to stop future collection; past events already sent
+        to Google Analytics are retained under Google's standard retention settings. To request
+        deletion of previously shared data, contact us using the details below.
+      </p>
+      <div class="note">
+        <p>
+          Keyword packs and custom pack names are user-entered text, so if you type something
+          personal into a pack name or keyword while this toggle is on, that text is included. If
+          you'd rather it never be sent, leave the toggle off — the extension works identically
+          either way.
+        </p>
+      </div>
+
+      <h2>What we do not do</h2>
+      <ul>
+        <li>We do not sell or share your data with third parties for advertising</li>
+        <li>We do not require or support creating an account</li>
+        <li>We do not use remote-loaded or third-party tracking SDKs — analytics, when enabled, is a direct network call you can inspect in your browser's developer tools</li>
+        <li>We do not access your browsing history, passwords, or content on pages beyond what's needed to apply your own filtering rules</li>
+      </ul>
+
+      <h2>Permissions</h2>
+      <p>
+        Cancel It requests <code>storage</code> to save your settings, <code>activeTab</code> so the
+        toolbar popup can show which site you're on, and host permissions on all sites because
+        filtering only works on a page the content script can read. None of these permissions are
+        used to collect or transmit data beyond what's described above.
+      </p>
+
+      <h2>Data retention and deletion</h2>
+      <p>
+        All locally stored data (blocklist, settings, stats) is deleted automatically when you
+        uninstall the extension, or immediately if you clear it yourself from the Activity section
+        or your browser's extension storage settings.
+      </p>
+
+      <h2>Children's privacy</h2>
+      <p>
+        Cancel It includes an optional "Family controls" PIN feature intended to help households
+        share a device, but the extension does not knowingly collect data from children and does
+        not distinguish user ages.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        If what Cancel It collects changes, this page will be updated and the "Last updated" date
+        above will reflect that.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about this policy or a data deletion request:
+        <a href="https://umarafzal11.app.n8n.cloud/form/49baa5e5-c3ba-4595-aae4-c72771f2947f" target="_blank" rel="noreferrer noopener">contact form</a>.
       </p>
     </main>
   </body>
