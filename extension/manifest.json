@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cancel It",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Hide, blur, or replace blocked names and keywords across websites.",
   "icons": {
     "16": "assets/brand/icon-16.png",
