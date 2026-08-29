@@ -9,7 +9,9 @@ const PACKS = {
   sports_spoilers: ["final score", "match winner", "spoiler", "knockout", "highlights", "game recap"],
   adult_content: ["porn", "pornography", "nsfw", "explicit", "adult video", "onlyfans"],
   family_safe: ["porn", "nsfw", "explicit", "gore", "violent", "graphic violence", "adult content"],
-  ragebait: ["you won't believe", "meltdown", "ratioed", "destroyed", "exposed", "viral outrage"]
+  ragebait: ["you won't believe", "meltdown", "ratioed", "destroyed", "exposed", "viral outrage"],
+  ai_hype: ["chatgpt", "ai-generated", "artificial intelligence", "generative ai", "ai hype", "prompt engineering"],
+  reality_tv: ["reality tv", "reality show", "love island", "bachelor nation", "rose ceremony", "elimination episode"]
 };
 const PACK_LABELS = {
   celebrity_gossip: "Celebrity Gossip pack",
@@ -18,7 +20,9 @@ const PACK_LABELS = {
   sports_spoilers: "Sports Spoilers pack",
   adult_content: "Adult Content pack",
   family_safe: "Family Safe pack",
-  ragebait: "Ragebait pack"
+  ragebait: "Ragebait pack",
+  ai_hype: "AI Hype pack",
+  reality_tv: "Reality TV pack"
 };
 const DEFAULT_SETTINGS = {
   enabled: true,

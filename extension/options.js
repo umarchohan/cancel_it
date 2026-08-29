@@ -39,6 +39,16 @@ const PACKS = {
     label: "Ragebait",
     description: "Headlines engineered to make you angry.",
     terms: ["you won't believe", "meltdown", "ratioed", "destroyed", "exposed", "viral outrage"]
+  },
+  ai_hype: {
+    label: "AI Hype",
+    description: "Chatbot buzz, generative-AI takes, and prompt-engineering hot air.",
+    terms: ["chatgpt", "ai-generated", "artificial intelligence", "generative ai", "ai hype", "prompt engineering"]
+  },
+  reality_tv: {
+    label: "Reality TV",
+    description: "Dating shows, competition drama, and reality TV recap spoilers.",
+    terms: ["reality tv", "reality show", "love island", "bachelor nation", "rose ceremony", "elimination episode"]
   }
 };
 

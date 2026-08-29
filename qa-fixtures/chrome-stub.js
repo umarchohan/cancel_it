@@ -16,10 +16,10 @@
       blockedTerms: ["Jennifer Lopez", "porn", "pornography"],
       enabledPacks: ["celebrity_gossip", "politics"],
       customPacks: {
-        custom_reality_tv: {
-          label: "Reality TV",
-          description: "Villa drama and rose ceremonies.",
-          terms: ["villa", "rose ceremony", "elimination"]
+        custom_true_crime: {
+          label: "True Crime",
+          description: "Podcast recaps and case-file deep dives.",
+          terms: ["true crime", "cold case", "unsolved mystery"]
         }
       },
       packCustomTerms: { celebrity_gossip: ["met gala"] },
