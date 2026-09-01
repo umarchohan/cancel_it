@@ -37,10 +37,16 @@ const DEFAULT_SETTINGS = {
   customPacks: {},
   packCustomTerms: {},
   tempMutedTerms: [],
-  siteRules: []
+  siteRules: [],
+  focusMode: {
+    blockedSites: [],
+    active: false,
+    sessionEndsAt: null
+  }
 };
 
 const STYLE_ID = "cancel-it-styles";
+const FOCUS_OVERLAY_ID = "cancel-it-focus-overlay";
 const FLAG_ATTR = "data-cancel-it-blocked";
 const REASON_ATTR = "data-cancel-it-reason";
 const LABEL_ATTR = "data-cancel-it-label";
@@ -126,6 +132,7 @@ let activeSettings = {
 };
 let pageSummarySyncTimer = null;
 let lastPersistedSummarySignature = "";
+let focusCountdownTimer = null;
 
 function createEmptyPageSummary() {
   return {
@@ -322,6 +329,94 @@ function ensureStyles() {
       pointer-events: none !important;
       user-select: none !important;
     }
+
+    #${FOCUS_OVERLAY_ID} {
+      all: initial !important;
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 2147483647 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: #f4f3ef !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    }
+
+    #${FOCUS_OVERLAY_ID} * {
+      box-sizing: border-box !important;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-card {
+      max-width: 420px;
+      width: calc(100% - 48px);
+      padding: 40px 36px;
+      border-radius: 20px;
+      background: #ffffff;
+      border: 1px solid #e4e2dc;
+      box-shadow: 0 30px 70px rgba(31, 36, 33, 0.16);
+      text-align: center;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-logo {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 16px;
+      border-radius: 13px;
+      background: #0e7a6b;
+      position: relative;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-logo::after {
+      content: "";
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: #f7c948;
+      top: 5px;
+      right: 4px;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-kicker {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #0e7a6b;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-title {
+      margin: 0 0 10px;
+      font-size: 21px;
+      font-weight: 700;
+      color: #1f2421;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-sub {
+      margin: 0 0 4px;
+      font-size: 14px;
+      color: #4a4f47;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-countdown {
+      margin: 0 0 22px;
+      font-size: 13px;
+      color: #9a9f97;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #${FOCUS_OVERLAY_ID} .cancel-it-focus-manage {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0e7a6b;
+      text-decoration: none;
+      border-bottom: 1px solid #cbe2da;
+      padding-bottom: 2px;
+    }
   `;
 
   document.documentElement.appendChild(style);
@@ -412,6 +507,89 @@ function resolveSiteRule(rules, hostname) {
     .sort((left, right) => right.pattern.length - left.pattern.length);
 
   return matched[0] || null;
+}
+
+// Focus Mode blocks by hostname, independent of keyword filtering and the
+// master enabled flag, so a session keeps holding even if someone flips
+// filtering off elsewhere (they'd still need the parent PIN to do that when
+// one is set — the same speed bump the rest of the product relies on).
+function getActiveFocusBlock() {
+  const focusMode = settings.focusMode;
+  if (!focusMode?.active || !focusMode.sessionEndsAt) {
+    return null;
+  }
+
+  const endsAt = new Date(focusMode.sessionEndsAt).getTime();
+  if (!Number.isFinite(endsAt) || endsAt <= Date.now()) {
+    return null;
+  }
+
+  const isBlockedSite = (focusMode.blockedSites || []).some((site) => matchesSitePattern(site, location.hostname));
+  return isBlockedSite ? { endsAt } : null;
+}
+
+function formatFocusCountdown(msRemaining) {
+  const totalSeconds = Math.max(0, Math.round(msRemaining / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")} remaining`;
+}
+
+function updateFocusCountdown(endsAt) {
+  const countdownNode = document.getElementById("cancel-it-focus-countdown");
+  if (!countdownNode) {
+    window.clearInterval(focusCountdownTimer);
+    return;
+  }
+
+  const remaining = endsAt - Date.now();
+  if (remaining <= 0) {
+    window.clearInterval(focusCountdownTimer);
+    fullRescan();
+    return;
+  }
+
+  countdownNode.textContent = formatFocusCountdown(remaining);
+}
+
+function renderFocusBlock(endsAt) {
+  let overlay = document.getElementById(FOCUS_OVERLAY_ID);
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = FOCUS_OVERLAY_ID;
+    const manageUrl = chrome.runtime.getURL("options.html#focus");
+    overlay.innerHTML = `
+      <div class="cancel-it-focus-card">
+        <div class="cancel-it-focus-logo"></div>
+        <p class="cancel-it-focus-kicker">Focus session</p>
+        <h1 class="cancel-it-focus-title">${escapeHtml(location.hostname)} is off-limits right now</h1>
+        <p class="cancel-it-focus-sub">Back at <strong id="cancel-it-focus-clock"></strong></p>
+        <p class="cancel-it-focus-countdown" id="cancel-it-focus-countdown"></p>
+        <a class="cancel-it-focus-manage" href="${manageUrl}" target="_blank" rel="noreferrer noopener">Manage focus session</a>
+      </div>
+    `;
+    document.documentElement.appendChild(overlay);
+    document.documentElement.style.setProperty("overflow", "hidden", "important");
+  }
+
+  const clockNode = document.getElementById("cancel-it-focus-clock");
+  if (clockNode) {
+    clockNode.textContent = new Date(endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  updateFocusCountdown(endsAt);
+  window.clearInterval(focusCountdownTimer);
+  focusCountdownTimer = window.setInterval(() => updateFocusCountdown(endsAt), 1000);
+}
+
+function removeFocusBlock() {
+  window.clearInterval(focusCountdownTimer);
+  focusCountdownTimer = null;
+  document.documentElement.style.removeProperty("overflow");
+  const overlay = document.getElementById(FOCUS_OVERLAY_ID);
+  if (overlay) {
+    overlay.remove();
+  }
 }
 
 function rebuildActiveSettings() {
@@ -1313,6 +1491,14 @@ function fullRescan() {
   observer?.disconnect();
   try {
     clearBlockedState();
+
+    const focusBlock = getActiveFocusBlock();
+    if (focusBlock) {
+      renderFocusBlock(focusBlock.endsAt);
+      return;
+    }
+    removeFocusBlock();
+
     if (!activeSettings.enabled || !document.body) {
       return;
     }

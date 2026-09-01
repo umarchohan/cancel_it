@@ -90,6 +90,48 @@ body {
   animation: fade-up 200ms ease;
 }
 
+.popup-focus-banner {
+  padding: 12px 14px;
+  border: 1px solid var(--ink);
+  border-radius: 12px;
+  background: var(--ink);
+}
+
+.popup-focus-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.popup-focus-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--gold);
+}
+
+.popup-focus-sub {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #c9cdc6;
+  font-variant-numeric: tabular-nums;
+}
+
+.popup-focus-manage {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.popup-focus-manage:hover {
+  color: var(--gold);
+  text-decoration: none;
+}
+
 .popup-hero {
   padding: 14px;
   border: 1px solid var(--teal-border);

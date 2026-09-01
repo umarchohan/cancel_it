@@ -63,6 +63,11 @@ const DEFAULT_SETTINGS = {
   tempMutedTerms: [],
   siteRules: [],
   shareUsageStats: false,
+  focusMode: {
+    blockedSites: [],
+    active: false,
+    sessionEndsAt: null
+  },
   parentLock: {
     enabled: false,
     pinHash: "",
@@ -70,6 +75,8 @@ const DEFAULT_SETTINGS = {
     relockMinutes: 0
   }
 };
+
+const FOCUS_DURATION_PRESETS = [25, 50, 90];
 
 const MODE_LABELS = {
   blur: "Blur it",
@@ -114,7 +121,7 @@ const HELP_CONTENT = {
   }
 };
 
-const SECTIONS = ["overview", "blocklist", "packs", "sites", "appearance", "family", "activity", "support"];
+const SECTIONS = ["overview", "blocklist", "packs", "sites", "focus", "appearance", "family", "activity", "support"];
 
 const analytics = window.CancelItAnalytics || { track: () => null, summarizeSettings: () => ({}) };
 
@@ -154,6 +161,24 @@ const dom = {
   siteRulesEmpty: document.getElementById("site-rules-empty"),
   siteDomain: document.getElementById("site-domain"),
   addRuleButton: document.getElementById("add-rule-button"),
+  focusSiteList: document.getElementById("focus-site-list"),
+  focusSitesEmpty: document.getElementById("focus-sites-empty"),
+  focusSiteDomain: document.getElementById("focus-site-domain"),
+  addFocusSiteButton: document.getElementById("add-focus-site-button"),
+  focusStartCard: document.getElementById("focus-start-card"),
+  focusDurationOptions: document.getElementById("focus-duration-options"),
+  focusDurationCustom: document.getElementById("focus-duration-custom"),
+  focusStartButton: document.getElementById("focus-start-button"),
+  focusStartError: document.getElementById("focus-start-error"),
+  focusActiveCard: document.getElementById("focus-active-card"),
+  focusActiveClock: document.getElementById("focus-active-clock"),
+  focusActiveCountdown: document.getElementById("focus-active-countdown"),
+  focusActiveSites: document.getElementById("focus-active-sites"),
+  focusEndButton: document.getElementById("focus-end-button"),
+  focusEndPinRow: document.getElementById("focus-end-pin-row"),
+  focusEndPinInput: document.getElementById("focus-end-pin-input"),
+  focusEndPinConfirm: document.getElementById("focus-end-pin-confirm"),
+  focusEndPinError: document.getElementById("focus-end-pin-error"),
   modeCards: Array.from(document.querySelectorAll("#mode-cards .option-card")),
   scopeCards: Array.from(document.querySelectorAll("#scope-cards .option-card")),
   placeholderCard: document.getElementById("placeholder-card"),
@@ -208,6 +233,9 @@ let openPacks = new Set();
 let packDrafts = {};
 let relockTimer = 0;
 let toastTimer = 0;
+let selectedFocusMinutes = FOCUS_DURATION_PRESETS[0];
+let focusCountdownTimer = 0;
+let focusEndPinRevealed = false;
 
 /* ---------- helpers ---------- */
 
@@ -787,6 +815,157 @@ function renderSiteRules() {
   }
 }
 
+/* ---------- focus mode ----------
+   Unlike the rest of the settings page, focus mode does not go through the
+   dirty-tracking/Save flow — starting or ending a session is an action, not
+   a draft preference, the same way the popup's enabled toggle and "Reset
+   history" write immediately. Every mutation re-fetches the stored settings
+   fresh and merges in just the focusMode patch, so it can never clobber an
+   unrelated unsaved edit sitting in settingsState (mirrors popup.js's
+   persistEnabled). settingsState.focusMode is kept as a read-only mirror of
+   whatever was last persisted, purely so collectSettings() round-trips the
+   correct value if the user separately hits the main Save button. */
+
+function isFocusSessionActive() {
+  const focusMode = settingsState.focusMode;
+  if (!focusMode?.active || !focusMode.sessionEndsAt) {
+    return false;
+  }
+
+  return new Date(focusMode.sessionEndsAt).getTime() > Date.now();
+}
+
+function formatFocusCountdown(msRemaining) {
+  const totalSeconds = Math.max(0, Math.round(msRemaining / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")} remaining`;
+}
+
+function persistFocusMode(patch) {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get([STORAGE_KEY], (result) => {
+      const current = result[STORAGE_KEY] || {};
+      const nextFocusMode = {
+        ...structuredClone(DEFAULT_SETTINGS.focusMode),
+        ...(current.focusMode || {}),
+        ...patch
+      };
+
+      chrome.storage.sync.set({ [STORAGE_KEY]: { ...current, focusMode: nextFocusMode } }, () => {
+        if (chrome.runtime.lastError) {
+          showToast("Couldn't update focus mode. Try again.", true);
+          resolve(false);
+          return;
+        }
+
+        settingsState.focusMode = nextFocusMode;
+        renderFocusSection();
+        resolve(true);
+      });
+    });
+  });
+}
+
+function renderFocusDurationOptions() {
+  dom.focusDurationOptions.textContent = "";
+  for (const minutes of FOCUS_DURATION_PRESETS) {
+    const chip = el("button", "relock-chip", `${minutes} min`);
+    chip.type = "button";
+    chip.setAttribute("role", "radio");
+    chip.setAttribute("aria-checked", String(minutes === selectedFocusMinutes));
+    chip.addEventListener("click", () => {
+      selectedFocusMinutes = minutes;
+      dom.focusDurationCustom.value = "";
+      renderFocusDurationOptions();
+    });
+    dom.focusDurationOptions.appendChild(chip);
+  }
+}
+
+function renderFocusSites() {
+  dom.focusSiteList.textContent = "";
+  const sites = settingsState.focusMode?.blockedSites || [];
+  dom.focusSitesEmpty.classList.toggle("hidden", sites.length > 0);
+  const sessionActive = isFocusSessionActive();
+
+  for (const site of sites) {
+    const row = el("div", "list-row");
+    row.appendChild(el("span", "rule-domain", site));
+
+    if (!sessionActive) {
+      const remove = el("button", "link-danger", "Remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `Remove ${site} from focus mode`);
+      remove.addEventListener("click", () => {
+        persistFocusMode({ blockedSites: sites.filter((entry) => entry !== site) });
+      });
+      row.appendChild(remove);
+    }
+
+    dom.focusSiteList.appendChild(row);
+  }
+}
+
+function stopFocusCountdown() {
+  window.clearInterval(focusCountdownTimer);
+  focusCountdownTimer = 0;
+}
+
+function tickFocusCountdown() {
+  if (!isFocusSessionActive()) {
+    stopFocusCountdown();
+    renderFocusSection();
+    return;
+  }
+
+  const endsAt = new Date(settingsState.focusMode.sessionEndsAt).getTime();
+  dom.focusActiveCountdown.textContent = formatFocusCountdown(endsAt - Date.now());
+}
+
+function resetFocusEndPinPrompt() {
+  focusEndPinRevealed = false;
+  dom.focusEndPinRow.classList.add("hidden");
+  dom.focusEndPinInput.value = "";
+  dom.focusEndPinError.classList.add("hidden");
+}
+
+function renderFocusSection() {
+  renderFocusSites();
+  renderFocusDurationOptions();
+
+  const sessionActive = isFocusSessionActive();
+  dom.focusStartCard.classList.toggle("hidden", sessionActive);
+  dom.focusActiveCard.classList.toggle("hidden", !sessionActive);
+  dom.focusStartButton.disabled = !(settingsState.focusMode?.blockedSites || []).length;
+
+  stopFocusCountdown();
+  if (!sessionActive) {
+    resetFocusEndPinPrompt();
+    return;
+  }
+
+  const endsAt = new Date(settingsState.focusMode.sessionEndsAt).getTime();
+  dom.focusActiveClock.textContent = new Date(endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  dom.focusActiveSites.textContent = `Blocking: ${(settingsState.focusMode.blockedSites || []).join(", ")}`;
+  tickFocusCountdown();
+  focusCountdownTimer = window.setInterval(tickFocusCountdown, 1000);
+}
+
+async function endFocusSessionWithPin(pin) {
+  const { pinSalt, pinHash } = settingsState.parentLock || {};
+  const computed = await hashPin(pin, pinSalt);
+  if (computed !== pinHash) {
+    dom.focusEndPinError.textContent = "That PIN doesn't match.";
+    dom.focusEndPinError.classList.remove("hidden");
+    dom.focusEndPinInput.value = "";
+    return;
+  }
+
+  await persistFocusMode({ active: false, sessionEndsAt: null });
+  showToast("Focus session ended");
+}
+
 function renderModeCards() {
   for (const card of dom.modeCards) {
     card.setAttribute("aria-checked", String(card.dataset.mode === settingsState.mode));
@@ -921,6 +1100,7 @@ function renderAll() {
   renderTempList();
   renderPacks();
   renderSiteRules();
+  renderFocusSection();
   renderModeCards();
   renderFamilyControls();
   renderLockScreen();
@@ -943,6 +1123,10 @@ function applySettings(rawSettings) {
   settingsState.packCustomTerms = settingsState.packCustomTerms || {};
   settingsState.customPacks = settingsState.customPacks || {};
   settingsState.siteRules = settingsState.siteRules || [];
+  settingsState.focusMode = {
+    ...structuredClone(DEFAULT_SETTINGS.focusMode),
+    ...(settingsState.focusMode || {})
+  };
 
   dom.pinInput.value = "";
   dom.pinConfirm.value = "";
@@ -992,6 +1176,9 @@ function collectSettings() {
     tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms),
     siteRules: settingsState.siteRules,
     shareUsageStats: Boolean(settingsState.shareUsageStats),
+    // Focus mode saves itself immediately (see persistFocusMode) — included
+    // here only so a regular Save doesn't overwrite it with a stale copy.
+    focusMode: settingsState.focusMode,
     parentLock: settingsState.parentLock
   };
 }
@@ -1251,6 +1438,101 @@ dom.siteDomain.addEventListener("keydown", (event) => {
     event.preventDefault();
     dom.addRuleButton.click();
   }
+});
+
+function normalizeDomainInput(value) {
+  return normalizeTerm(value)
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+}
+
+dom.addFocusSiteButton.addEventListener("click", () => {
+  const domain = normalizeDomainInput(dom.focusSiteDomain.value);
+  if (!domain) {
+    return;
+  }
+
+  const sites = settingsState.focusMode?.blockedSites || [];
+  if (!sites.includes(domain)) {
+    persistFocusMode({ blockedSites: [...sites, domain] });
+  }
+  dom.focusSiteDomain.value = "";
+});
+
+dom.focusSiteDomain.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    dom.addFocusSiteButton.click();
+  }
+});
+
+dom.focusDurationCustom.addEventListener("input", () => {
+  const minutes = Math.round(Number(dom.focusDurationCustom.value));
+  if (minutes > 0) {
+    selectedFocusMinutes = minutes;
+    renderFocusDurationOptions();
+  }
+});
+
+dom.focusStartButton.addEventListener("click", async () => {
+  const sites = settingsState.focusMode?.blockedSites || [];
+  if (!sites.length) {
+    return;
+  }
+
+  if (!(selectedFocusMinutes > 0)) {
+    dom.focusStartError.textContent = "Pick a session length first.";
+    dom.focusStartError.classList.remove("hidden");
+    return;
+  }
+
+  dom.focusStartError.classList.add("hidden");
+  const sessionEndsAt = new Date(Date.now() + selectedFocusMinutes * 60000).toISOString();
+  const ok = await persistFocusMode({ active: true, sessionEndsAt });
+  if (ok) {
+    analytics.track("focus_session_started", {
+      duration_minutes: selectedFocusMinutes,
+      blocked_site_count: sites.length
+    });
+    showToast("Focus session started");
+  }
+});
+
+dom.focusEndButton.addEventListener("click", async () => {
+  if (isLockEnabled()) {
+    focusEndPinRevealed = true;
+    dom.focusEndPinRow.classList.remove("hidden");
+    dom.focusEndPinInput.focus();
+    return;
+  }
+
+  const ok = await persistFocusMode({ active: false, sessionEndsAt: null });
+  if (ok) {
+    showToast("Focus session ended");
+  }
+});
+
+dom.focusEndPinConfirm.addEventListener("click", () => {
+  const pin = dom.focusEndPinInput.value.trim();
+  if (!pin) {
+    dom.focusEndPinError.textContent = "Enter the PIN.";
+    dom.focusEndPinError.classList.remove("hidden");
+    return;
+  }
+
+  endFocusSessionWithPin(pin);
+});
+
+dom.focusEndPinInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    dom.focusEndPinConfirm.click();
+  }
+});
+
+dom.focusEndPinInput.addEventListener("input", () => {
+  dom.focusEndPinInput.value = dom.focusEndPinInput.value.replace(/\D/g, "");
 });
 
 function bindOptionCards(cards, datasetKey, apply) {

@@ -50,6 +50,10 @@
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"></path></svg>
             Sites
           </button>
+          <button class="nav-item" data-section="focus" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
+            Focus
+          </button>
           <button class="nav-item" data-section="appearance" type="button">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"></path><circle cx="16" cy="8" r="2"></circle><circle cx="8" cy="16" r="2"></circle></svg>
             Filtering style
@@ -187,6 +191,52 @@
                 <input id="site-domain" class="text-input grow" type="text" placeholder="Add a site, e.g. youtube.com" aria-label="Website domain">
                 <button id="add-rule-button" class="button-primary" type="button">Add rule</button>
               </div>
+            </div>
+          </section>
+
+          <!-- Focus -->
+          <section id="section-focus" class="section hidden" data-title="Focus">
+            <div class="section-intro">
+              <h2 class="section-title">Focus mode</h2>
+              <p class="section-sub">Block a list of sites outright for a set amount of time — no blur, no placeholder, just off-limits until the timer ends. Changes here take effect immediately, no save needed.</p>
+            </div>
+
+            <div class="card">
+              <p class="card-title">Sites to block</p>
+              <p class="card-sub">Add any site you want fully blocked during a focus session.</p>
+              <div id="focus-site-list" class="row-list"></div>
+              <p id="focus-sites-empty" class="empty-note">No sites added yet.</p>
+              <div class="inline-row add-rule-row">
+                <input id="focus-site-domain" class="text-input grow" type="text" placeholder="Add a site, e.g. reddit.com" aria-label="Website to block during focus sessions">
+                <button id="add-focus-site-button" class="button-primary" type="button">Add site</button>
+              </div>
+            </div>
+
+            <div id="focus-start-card" class="card">
+              <p class="card-title">Start a session</p>
+              <p class="card-sub">Pick how long to block the sites above.</p>
+              <div id="focus-duration-options" class="relock-row" role="radiogroup" aria-label="Focus session length"></div>
+              <div class="inline-row focus-duration-custom-row">
+                <input id="focus-duration-custom" class="text-input focus-duration-input" type="number" min="1" max="480" placeholder="Custom minutes" aria-label="Custom session length in minutes">
+              </div>
+              <div class="inline-row focus-start-row">
+                <button id="focus-start-button" class="button-primary" type="button">Start focus session</button>
+              </div>
+              <p id="focus-start-error" class="field-error hidden" role="alert"></p>
+            </div>
+
+            <div id="focus-active-card" class="card focus-active-card hidden">
+              <p class="card-title">Focus session active</p>
+              <p class="card-sub">Back at <strong id="focus-active-clock"></strong> · <span id="focus-active-countdown"></span></p>
+              <p id="focus-active-sites" class="card-sub tight"></p>
+              <div class="inline-row focus-end-row">
+                <button id="focus-end-button" class="button-danger-ghost" type="button">End session early</button>
+              </div>
+              <div id="focus-end-pin-row" class="inline-row focus-end-pin-row hidden">
+                <input id="focus-end-pin-input" class="text-input pin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" aria-label="Enter PIN to end session">
+                <button id="focus-end-pin-confirm" class="button-primary" type="button">Confirm</button>
+              </div>
+              <p id="focus-end-pin-error" class="field-error hidden" role="alert"></p>
             </div>
           </section>
 

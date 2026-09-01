@@ -31,6 +31,7 @@
         { id: "r1", pattern: "facebook.com", mode: "hide", matchScope: "block", enabled: true },
         { id: "r2", pattern: "wikipedia.org", mode: "off", matchScope: "inline", enabled: true }
       ],
+      focusMode: { blockedSites: [], active: false, sessionEndsAt: null },
       parentLock: { enabled: false, pinHash: "", pinSalt: "", relockMinutes: 5 }
     }
   };

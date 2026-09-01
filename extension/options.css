@@ -857,6 +857,38 @@ textarea.text-input {
   border-top: 1px solid var(--border-soft);
 }
 
+/* Focus mode */
+
+.focus-duration-custom-row {
+  margin-top: 10px;
+}
+
+.focus-duration-input {
+  width: 160px;
+}
+
+.focus-start-row {
+  margin-top: 16px;
+}
+
+.focus-active-card {
+  border-color: var(--teal-border);
+  background: var(--teal-soft);
+}
+
+.focus-active-card .card-title,
+.focus-active-card .card-sub {
+  color: var(--teal-ink);
+}
+
+.focus-end-row {
+  margin-top: 8px;
+}
+
+.focus-end-pin-row {
+  margin-top: 12px;
+}
+
 /* Activity */
 
 .stat-grid {

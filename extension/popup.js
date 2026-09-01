@@ -8,6 +8,11 @@ const DEFAULT_SETTINGS = {
   matchScope: "inline",
   enabledPacks: [],
   shareUsageStats: false,
+  focusMode: {
+    blockedSites: [],
+    active: false,
+    sessionEndsAt: null
+  },
   parentLock: {
     enabled: false,
     pinHash: "",
@@ -28,6 +33,9 @@ const blocksNode = document.getElementById("popup-blocks");
 const countNode = document.getElementById("popup-count");
 const chipsNode = document.getElementById("popup-chips");
 const openOptionsButton = document.getElementById("open-options");
+const focusBannerNode = document.getElementById("popup-focus-banner");
+const focusClockNode = document.getElementById("popup-focus-clock");
+const focusCountdownNode = document.getElementById("popup-focus-countdown");
 const pinInput = document.getElementById("popup-pin");
 const pinErrorNode = document.getElementById("popup-pin-error");
 const unlockButton = document.getElementById("popup-unlock");
@@ -39,6 +47,7 @@ let currentSettings = structuredClone(DEFAULT_SETTINGS);
 let lockState = { unlockedUntil: 0 };
 let currentTabUrl = "";
 let currentSummary = null;
+let focusCountdownTimer = 0;
 
 function mergeSettings(raw) {
   return {
@@ -134,6 +143,50 @@ function renderSummary() {
   }
 }
 
+function isFocusSessionActive() {
+  const focusMode = currentSettings.focusMode;
+  if (!focusMode?.active || !focusMode.sessionEndsAt) {
+    return false;
+  }
+
+  return new Date(focusMode.sessionEndsAt).getTime() > Date.now();
+}
+
+function formatFocusCountdown(msRemaining) {
+  const totalSeconds = Math.max(0, Math.round(msRemaining / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")} remaining`;
+}
+
+function tickFocusCountdown() {
+  if (!isFocusSessionActive()) {
+    window.clearInterval(focusCountdownTimer);
+    focusCountdownTimer = 0;
+    renderFocusBanner();
+    return;
+  }
+
+  const endsAt = new Date(currentSettings.focusMode.sessionEndsAt).getTime();
+  focusCountdownNode.textContent = formatFocusCountdown(endsAt - Date.now());
+}
+
+function renderFocusBanner() {
+  const active = isFocusSessionActive();
+  focusBannerNode.classList.toggle("hidden", !active);
+  window.clearInterval(focusCountdownTimer);
+  focusCountdownTimer = 0;
+
+  if (!active) {
+    return;
+  }
+
+  const endsAt = new Date(currentSettings.focusMode.sessionEndsAt).getTime();
+  focusClockNode.textContent = new Date(endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  tickFocusCountdown();
+  focusCountdownTimer = window.setInterval(tickFocusCountdown, 1000);
+}
+
 function renderLockState() {
   const locked = !isCurrentlyUnlocked();
   lockedView.classList.toggle("hidden", !locked);
@@ -148,6 +201,7 @@ function renderLockState() {
 function render() {
   renderHero();
   renderSummary();
+  renderFocusBanner();
   renderLockState();
 }
 
