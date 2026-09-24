@@ -302,6 +302,20 @@
                 <input id="placeholder-image" type="file" accept="image/png,image/jpeg,image/webp">
               </label>
             </div>
+            <div class="section-intro">
+              <p class="card-title">Explicit images</p>
+              <p class="section-sub">Automatic checking that works alongside your word list.</p>
+            </div>
+            <div class="card">
+              <div class="pin-toggle-row">
+                <div>
+                  <p class="card-title">Detect explicit images automatically</p>
+                  <p class="card-sub tight">Off by default. When on, Cancel It checks the pictures on the pages you visit with a small AI model that runs entirely on this device, and blurs the ones that look sexually explicit. Blurred pictures stay blurred; there is no reveal button. Pictures are downloaded a second time so they can be checked; nothing is ever uploaded or shared. It can make mistakes: some safe pictures (swimwear and beach photos, for example) may get blurred and some explicit ones may slip through. To stop it on one site, set that site to Off under Sites.</p>
+                </div>
+                <button id="image-detection-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="Detect explicit images automatically"><span class="knob"></span></button>
+              </div>
+              <p id="image-detection-status" class="image-detection-status hidden" role="status"></p>
+            </div>
           </section>
 
           <!-- Family controls -->

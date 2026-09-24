@@ -791,6 +791,23 @@ textarea.text-input {
   gap: 12px;
 }
 
+.image-detection-status {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--teal-border);
+  border-radius: 10px;
+  background: var(--teal-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--teal-dark);
+}
+
+.image-detection-status.warn {
+  border-color: var(--amber-border);
+  background: var(--amber-soft);
+  color: var(--amber-text);
+}
+
 .pin-config {
   display: flex;
   flex-direction: column;

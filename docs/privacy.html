@@ -50,7 +50,7 @@
   <body>
     <main>
       <h1>Cancel It — Privacy Policy</h1>
-      <p class="updated">Last updated: July 2026</p>
+      <p class="updated">Last updated: September 2026</p>
 
       <p>
         Cancel It is a Chrome extension that hides, blurs, or replaces words and topics you choose
@@ -66,6 +66,38 @@
         seen by us.
       </p>
 
+      <h2>Explicit-image detection (opt-in, off by default)</h2>
+      <p>
+        Settings → Filtering style has a switch called <strong>"Detect explicit images
+        automatically."</strong> It is off by default. If you turn it on, Cancel It checks the
+        pictures on the pages you visit and blurs the ones a small AI model judges to be sexually
+        explicit. Blurred pictures stay blurred.
+      </p>
+      <ul>
+        <li>
+          <strong>The model runs on your device.</strong> It ships inside the extension package
+          and runs in your browser using your graphics chip. No image, image address, or model
+          result is ever sent to us, to Google, or to anyone else.
+        </li>
+        <li>
+          <strong>Pictures are downloaded a second time.</strong> To check a picture, the extension
+          requests it again from the website that hosts it (without your cookies and with the
+          browser cache switched off), analyses it in memory, and discards it; no copy is saved.
+          Pictures embedded directly in a page are analysed without a second download. The result
+          is kept only in memory for as long as the browser needs it and is never written to
+          storage. If you allow Cancel It in Incognito windows, it behaves the same way there.
+        </li>
+        <li>
+          <strong>Only counts are kept.</strong> If a picture is blurred, the local activity
+          counters go up by one (shown in Activity as "explicit image"); the picture and its web
+          address are not recorded.
+        </li>
+        <li>
+          <strong>It can be wrong.</strong> Some ordinary pictures may be blurred and some explicit
+          ones may not be. Pictures that can't be downloaded or checked in time are shown normally.
+        </li>
+      </ul>
+
       <h2>Data the extension stores</h2>
       <p>
         The following is stored only in your Chrome browser profile (via <code>chrome.storage</code>),
@@ -75,6 +107,7 @@
       <ul>
         <li>Your blocklist terms, enabled keyword packs, and custom packs you create</li>
         <li>Per-site filtering rules and your chosen filtering style</li>
+        <li>Your Focus Mode list of sites to block and when the current focus session ends (Focus Mode only compares the site you're on with that list, on your device)</li>
         <li>A salted hash of your optional parental-lock PIN (never the PIN itself)</li>
         <li>Local counters of how much content has been filtered, and a custom placeholder image if you set one</li>
       </ul>
@@ -90,12 +123,13 @@
         <tr><th>Sent when the toggle is on</th><th>Never sent</th></tr>
         <tr>
           <td>
-            Which filtering style / scope you use, whether a pack is turned on or off, custom pack
-            names, keywords you add to a pack, and counts (e.g. number of site rules)
+            Which filtering style / scope you use, whether a pack or explicit-image detection is
+            turned on or off, custom pack names, keywords you add to a pack, and counts (e.g.
+            number of site rules, or how many sites and minutes a focus session had)
           </td>
           <td>
-            Your main blocklist, temporary mutes, any page text, any URL or website you visit, your
-            PIN, or your identity
+            Your main blocklist, temporary mutes, any page text, any image or the model's opinion of
+            it, any URL or website you visit, your PIN, or your identity
           </td>
         </tr>
       </table>
@@ -128,7 +162,11 @@
       <p>
         Cancel It requests <code>storage</code> to save your settings, <code>activeTab</code> so the
         toolbar popup can show which site you're on, and host permissions on all sites because
-        filtering only works on a page the content script can read. None of these permissions are
+        filtering only works on a page the content script can read (and, if you turn on explicit-image
+        detection, so the extension can download a picture again to check it). It also requests
+        <code>offscreen</code>, to run the image model in a hidden page inside the browser, and
+        <code>scripting</code>, to keep pictures from flashing on screen before they've been checked.
+        Those two are used only while explicit-image detection is on. None of these permissions are
         used to collect or transmit data beyond what's described above.
       </p>
 

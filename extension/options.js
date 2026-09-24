@@ -1,6 +1,7 @@
 const STORAGE_KEY = "cancelItSettings";
 const STATS_STORAGE_KEY = "cancelItStats";
 const ASSETS_STORAGE_KEY = "cancelItAssets";
+const IMAGE_STATUS_STORAGE_KEY = "cancelItImageStatus";
 const LOCK_STATE_KEY = "cancelItLockState";
 const IMMEDIATE_RELOCK_WINDOW_MS = 10 * 60 * 1000;
 
@@ -63,6 +64,9 @@ const DEFAULT_SETTINGS = {
   tempMutedTerms: [],
   siteRules: [],
   shareUsageStats: false,
+  imageDetection: {
+    enabled: false
+  },
   focusMode: {
     blockedSites: [],
     active: false,
@@ -199,6 +203,8 @@ const dom = {
   lockNowRow: document.getElementById("lock-now-row"),
   lockNowButton: document.getElementById("lock-now-button"),
   analyticsToggle: document.getElementById("analytics-toggle"),
+  imageDetectionToggle: document.getElementById("image-detection-toggle"),
+  imageDetectionStatus: document.getElementById("image-detection-status"),
   resetStatsButton: document.getElementById("reset-stats-button"),
   statToday: document.getElementById("stat-today"),
   statWeek: document.getElementById("stat-week"),
@@ -224,6 +230,7 @@ const dom = {
 };
 
 let settingsState = structuredClone(DEFAULT_SETTINGS);
+let imageDetectionRuntime = { state: "off" }; // written by background.js into storage.session
 let hasUnsavedChanges = false;
 let assets = { placeholderImage: "" };
 let lockState = { unlockedUntil: 0 };
@@ -1092,9 +1099,28 @@ function renderAnalyticsToggle() {
   dom.analyticsToggle.setAttribute("aria-checked", String(Boolean(settingsState.shareUsageStats)));
 }
 
+const IMAGE_DETECTION_STATUS_COPY = {
+  loading: "Getting the image model ready…",
+  ready: "Ready. Checking runs on your computer's graphics chip.",
+  unsupported: "Not available on this computer: image checking needs graphics acceleration, which Chrome reports isn't available here. Pictures will be shown normally."
+};
+
+function renderImageDetection() {
+  const enabled = Boolean(settingsState.imageDetection?.enabled);
+  dom.imageDetectionToggle.setAttribute("aria-checked", String(enabled));
+
+  // The runtime state describes what is actually running, so only show it while the switch is
+  // on. Before Save it can briefly describe the previous setting; that's fine for a status line.
+  const copy = enabled ? IMAGE_DETECTION_STATUS_COPY[imageDetectionRuntime.state] : "";
+  dom.imageDetectionStatus.textContent = copy || "";
+  dom.imageDetectionStatus.classList.toggle("hidden", !copy);
+  dom.imageDetectionStatus.classList.toggle("warn", imageDetectionRuntime.state === "unsupported");
+}
+
 function renderAll() {
   renderGlobalStatus();
   renderAnalyticsToggle();
+  renderImageDetection();
   renderOverviewTiles();
   renderBlocklist();
   renderTempList();
@@ -1123,6 +1149,10 @@ function applySettings(rawSettings) {
   settingsState.packCustomTerms = settingsState.packCustomTerms || {};
   settingsState.customPacks = settingsState.customPacks || {};
   settingsState.siteRules = settingsState.siteRules || [];
+  settingsState.imageDetection = {
+    ...structuredClone(DEFAULT_SETTINGS.imageDetection),
+    ...(settingsState.imageDetection || {})
+  };
   settingsState.focusMode = {
     ...structuredClone(DEFAULT_SETTINGS.focusMode),
     ...(settingsState.focusMode || {})
@@ -1176,6 +1206,7 @@ function collectSettings() {
     tempMutedTerms: pruneExpiredTempTerms(settingsState.tempMutedTerms),
     siteRules: settingsState.siteRules,
     shareUsageStats: Boolean(settingsState.shareUsageStats),
+    imageDetection: { enabled: Boolean(settingsState.imageDetection?.enabled) },
     // Focus mode saves itself immediately (see persistFocusMode) — included
     // here only so a regular Save doesn't overwrite it with a stale copy.
     focusMode: settingsState.focusMode,
@@ -1603,6 +1634,12 @@ dom.lockNowButton.addEventListener("click", () => {
   clearUnlockWindow();
 });
 
+dom.imageDetectionToggle.addEventListener("click", () => {
+  settingsState.imageDetection = { enabled: !settingsState.imageDetection?.enabled };
+  renderImageDetection();
+  markDirty();
+});
+
 dom.analyticsToggle.addEventListener("click", () => {
   settingsState.shareUsageStats = !settingsState.shareUsageStats;
   renderAnalyticsToggle();
@@ -1690,6 +1727,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
   }
 
+  if (areaName === "session" && changes[IMAGE_STATUS_STORAGE_KEY]) {
+    imageDetectionRuntime = changes[IMAGE_STATUS_STORAGE_KEY].newValue || { state: "off" };
+    renderImageDetection();
+  }
+
   if (areaName === "local" && changes[STATS_STORAGE_KEY]) {
     renderStats(changes[STATS_STORAGE_KEY].newValue);
   }
@@ -1722,6 +1764,13 @@ async function init() {
 
   assets = { ...assets, ...(localResult[ASSETS_STORAGE_KEY] || {}) };
   lockState = { unlockedUntil: localResult[LOCK_STATE_KEY]?.unlockedUntil || 0 };
+
+  try {
+    const sessionResult = await chrome.storage.session.get([IMAGE_STATUS_STORAGE_KEY]);
+    imageDetectionRuntime = sessionResult[IMAGE_STATUS_STORAGE_KEY] || { state: "off" };
+  } catch (_error) {
+    // No session storage (older browser or the preview harness): the status line stays hidden.
+  }
 
   applySettings(syncResult[STORAGE_KEY]);
   renderStats(localResult[STATS_STORAGE_KEY]);

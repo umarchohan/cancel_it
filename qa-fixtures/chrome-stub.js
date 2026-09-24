@@ -32,6 +32,7 @@
         { id: "r2", pattern: "wikipedia.org", mode: "off", matchScope: "inline", enabled: true }
       ],
       focusMode: { blockedSites: [], active: false, sessionEndsAt: null },
+      imageDetection: { enabled: false },
       parentLock: { enabled: false, pinHash: "", pinSalt: "", relockMinutes: 5 }
     }
   };
@@ -60,6 +61,9 @@
       }
     }
   };
+
+  // storage.session holds the image-model status the background worker publishes ("ready" here).
+  const sessionData = { cancelItImageStatus: { state: "ready", backend: "webgl" } };
 
   const changeListeners = [];
 
@@ -93,6 +97,7 @@
     storage: {
       sync: makeArea(syncData, "sync"),
       local: makeArea(localData, "local"),
+      session: makeArea(sessionData, "session"),
       onChanged: { addListener(fn) { changeListeners.push(fn); } }
     },
     runtime: {

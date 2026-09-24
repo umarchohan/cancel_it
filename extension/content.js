@@ -42,11 +42,36 @@ const DEFAULT_SETTINGS = {
     blockedSites: [],
     active: false,
     sessionEndsAt: null
+  },
+  imageDetection: {
+    enabled: false
   }
 };
 
 const STYLE_ID = "cancel-it-styles";
 const FOCUS_OVERLAY_ID = "cancel-it-focus-overlay";
+const IMAGE_HINT_ID = "cancel-it-image-hint";
+// Explicit-image detection (see the block of image functions further down).
+// VERIFIED holds the URL an image was checked as; a changed URL means "not checked".
+const IMAGE_VERIFIED_ATTR = "data-cancel-it-verified";
+const IMAGE_EXPLICIT_ATTR = "data-cancel-it-explicit";
+const IMAGE_RELEASE_ATTR = "data-cancel-it-image-release";
+const IMAGE_HOLD_PROBE_PROPERTY = "--cancel-it-image-hold";
+const IMAGE_MIN_SIDE = 64;
+// Requests in flight per tab. The scoring itself is capped at 3 inside the offscreen document;
+// this is higher so slow downloads (real CDNs) overlap instead of queueing behind each other.
+const IMAGE_MAX_INFLIGHT = 8;
+const IMAGE_MAX_DATA_URL_LENGTH = 1500000;
+const IMAGE_QUEUE_SCAN_LIMIT = 200;
+const IMAGE_VERDICT_LIMIT = 5000;
+const IMAGE_TERM = "explicit image";
+const IMAGE_SOURCE_LABEL = "Image detection";
+// The model scores Porn / Hentai / Sexy. "Sexy" also fires on swimwear and other ordinary
+// photos, so it needs a higher bar than the two explicit classes. Measured on 621 ordinary
+// Wikipedia/Commons pictures (deliberately heavy on swimwear and beaches): 0.6/0.9 wrongly
+// blurred 4.5%, 0.5/0.8 blurs 6.6%, and lower bars start catching cats and paintings.
+const IMAGE_EXPLICIT_THRESHOLD = 0.5;
+const IMAGE_SUGGESTIVE_THRESHOLD = 0.8;
 const FLAG_ATTR = "data-cancel-it-blocked";
 const REASON_ATTR = "data-cancel-it-reason";
 const LABEL_ATTR = "data-cancel-it-label";
@@ -133,6 +158,24 @@ let activeSettings = {
 let pageSummarySyncTimer = null;
 let lastPersistedSummarySignature = "";
 let focusCountdownTimer = null;
+
+// Explicit-image detection state. Verdicts are keyed by image URL and outlive DOM churn, because
+// fullRescan() and site re-renders happen constantly but classification is slow and async.
+const imageVerdicts = new Map(); // key -> "ok" | "explicit"
+const imageRequested = new Set(); // keys already queued or sent, never sent twice
+const imageQueue = new Map(); // key -> { src, img } waiting for a free slot
+let imageInflight = 0;
+let imageSyncTimer = 0;
+let imageSuppressed = false; // true while a focus-mode overlay covers the page
+let imageDetectionUnsupported = false;
+let imageDetectionStarted = false;
+let imageSourceObserver = null;
+let imageHoldPresent = null; // did the early hold stylesheet load on this page? null = not looked yet
+let imageReleaseMarked = false;
+let imageEverActive = false;
+// Images this script itself settled. A page (or restored saved HTML) can carry a copy of our
+// data-cancel-it-verified attribute; only trust the marker on elements we verified.
+let imageSettled = new WeakSet();
 
 function createEmptyPageSummary() {
   return {
@@ -303,6 +346,29 @@ function ensureStyles() {
 
     [${TEXT_WRAPPER_ATTR}] {
       unicode-bidi: isolate !important;
+    }
+
+    /* Model-flagged images: always blurred (whatever the keyword mode is), with no way to
+       reveal them. clip-path stops the blur bleeding past the picture's box. */
+    img[${IMAGE_EXPLICIT_ATTR}] {
+      filter: blur(26px) saturate(0.2) !important;
+      clip-path: inset(0) !important;
+      user-select: none !important;
+    }
+
+    #${IMAGE_HINT_ID} {
+      all: initial !important;
+      position: fixed !important;
+      z-index: 2147483647 !important;
+      display: block !important;
+      padding: 7px 13px !important;
+      border-radius: 999px !important;
+      background: rgba(12, 12, 12, 0.88) !important;
+      color: #ffffff !important;
+      font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      white-space: nowrap !important;
+      pointer-events: none !important;
+      transform: translate(-50%, -50%) !important;
     }
 
     [${LABEL_ATTR}]::before {
@@ -618,7 +684,7 @@ function rebuildActiveSettings() {
       term,
       regex: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(term)}`, "iu")
     })),
-    termSources: buildTermSources()
+    termSources: { ...buildTermSources(), [IMAGE_TERM]: IMAGE_SOURCE_LABEL }
   };
 }
 
@@ -1430,6 +1496,410 @@ function scanMediaContainers(root) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Explicit image detection (opt-in, entirely on-device)
+//
+// How it fits together:
+//  * background.js registers image-hold.css at document_start while the feature is on. It hides
+//    every <img> that lacks data-cancel-it-verified and lets each one reappear by itself after
+//    4s, so a slow or dead checker can never break a page (fail-open).
+//  * Here, syncImages() is a level-triggered reconcile over document.images: it ends the hold
+//    for each image that is checked (or not checkable), and blurs the ones the model flags.
+//    Verdicts arrive late and asynchronously, so applying them is always "re-run the reconcile",
+//    never "poke the element that asked".
+//  * These attributes are not in the main MutationObserver's attributeFilter, so writing them
+//    can't trigger a rescan. Keep it that way: never write title/alt/aria-label/src here.
+// ---------------------------------------------------------------------------
+
+function imageDetectionActive() {
+  return Boolean(settings.imageDetection?.enabled)
+    && activeSettings.enabled
+    && !imageDetectionUnsupported
+    && !imageSuppressed;
+}
+
+// A URL long enough to be a data: payload must not be copied into an attribute in full.
+function imageKey(img) {
+  const src = img.currentSrc || "";
+  if (!src) {
+    return "";
+  }
+
+  return src.length <= 600 ? src : `${src.length}:${src.slice(0, 250)}…${src.slice(-250)}`;
+}
+
+function isCheckableImage(img, src) {
+  if (img.naturalWidth < IMAGE_MIN_SIDE || img.naturalHeight < IMAGE_MIN_SIDE) {
+    return false; // icons, avatars, tracking pixels
+  }
+
+  // Inline raster pictures (image-search thumbnails are often base64) are scored straight from the
+  // URL. blob: can't be read by the extension (blob URLs belong to the page), so it isn't checked.
+  if (src.startsWith("data:")) {
+    return src.length <= IMAGE_MAX_DATA_URL_LENGTH && /^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(src);
+  }
+
+  try {
+    const protocol = new URL(src).protocol;
+    if (protocol !== "http:" && protocol !== "https:") {
+      return false;
+    }
+  } catch (_error) {
+    return false;
+  }
+
+  return !/\.svg(?:$|[?#])/i.test(src);
+}
+
+function isExplicitScore(scores) {
+  const explicit = Number(scores?.porn || 0) + Number(scores?.hentai || 0);
+  return explicit >= IMAGE_EXPLICIT_THRESHOLD || Number(scores?.sexy || 0) >= IMAGE_SUGGESTIVE_THRESHOLD;
+}
+
+function markExplicit(img, key) {
+  if (img.hasAttribute(IMAGE_EXPLICIT_ATTR)) {
+    return;
+  }
+
+  img.setAttribute(IMAGE_EXPLICIT_ATTR, "1");
+  recordBlock(IMAGE_TERM, "image-detection", img, `${IMAGE_TERM}|${key}`);
+  schedulePageSummarySync();
+}
+
+function unmarkExplicit(img) {
+  if (!img.hasAttribute(IMAGE_EXPLICIT_ATTR)) {
+    return;
+  }
+
+  img.removeAttribute(IMAGE_EXPLICIT_ATTR);
+}
+
+function resetImage(img) {
+  imageSettled.delete(img);
+  img.removeAttribute(IMAGE_VERIFIED_ATTR);
+  unmarkExplicit(img);
+}
+
+function settleImage(img, key, verdict) {
+  imageSettled.add(img);
+  if (img.getAttribute(IMAGE_VERIFIED_ATTR) !== key) {
+    img.setAttribute(IMAGE_VERIFIED_ATTR, key);
+  }
+
+  if (verdict === "explicit") {
+    markExplicit(img, key);
+  } else {
+    unmarkExplicit(img);
+  }
+}
+
+function evaluateImage(img) {
+  const key = imageKey(img);
+  if (img.hasAttribute(IMAGE_VERIFIED_ATTR) && !imageSettled.has(img)) {
+    resetImage(img); // a marker we didn't put there is not a verdict
+  }
+
+  const verified = img.getAttribute(IMAGE_VERIFIED_ATTR);
+
+  if (!key) {
+    // No source selected yet (lazy placeholder). Stay held; once image-hold.js has stamped it as
+    // loaded, the stylesheet's 4s expiry releases it by itself.
+    if (verified) {
+      resetImage(img);
+    }
+    return;
+  }
+
+  if (verified && verified !== key) {
+    resetImage(img); // lazy-loading or srcset swapped the picture: the old verdict is void
+  } else if (verified === key) {
+    // Already released. Re-apply the verdict anyway: a late "explicit" answer must still blur.
+    const verdict = imageVerdicts.get(key);
+    if (verdict) {
+      settleImage(img, key, verdict);
+    }
+    return;
+  }
+
+  if (!img.complete) {
+    return; // the load/error listener brings us back
+  }
+
+  const src = img.currentSrc;
+  if (!isCheckableImage(img, src)) {
+    settleImage(img, key, "ok"); // includes broken images (naturalWidth 0)
+    return;
+  }
+
+  const verdict = imageVerdicts.get(key);
+  if (verdict) {
+    settleImage(img, key, verdict);
+    return;
+  }
+
+  enqueueImage(key, src, img);
+}
+
+function enqueueImage(key, src, img) {
+  if (imageRequested.has(key)) {
+    return;
+  }
+
+  imageRequested.add(key);
+  imageQueue.set(key, { src, img });
+  pumpImageQueue();
+}
+
+// Images nearest the viewport go first, so what the person is looking at clears soonest.
+function nextQueuedImageKey() {
+  let bestKey = null;
+  let bestDistance = Infinity;
+  let examined = 0;
+
+  for (const [key, entry] of imageQueue) {
+    if (++examined > IMAGE_QUEUE_SCAN_LIMIT) {
+      break;
+    }
+
+    let distance = Number.MAX_SAFE_INTEGER;
+    if (entry.img.isConnected) {
+      const rect = entry.img.getBoundingClientRect();
+      distance = rect.bottom < 0 ? -rect.bottom : Math.max(0, rect.top - window.innerHeight);
+    }
+
+    if (distance < bestDistance) {
+      bestKey = key;
+      bestDistance = distance;
+      if (distance === 0) {
+        break;
+      }
+    }
+  }
+
+  return bestKey;
+}
+
+function pumpImageQueue() {
+  while (imageInflight < IMAGE_MAX_INFLIGHT && imageQueue.size) {
+    const key = nextQueuedImageKey();
+    const { src } = imageQueue.get(key);
+    imageQueue.delete(key);
+    imageInflight += 1;
+    requestImageVerdict(key, src).then(() => {
+      imageInflight -= 1;
+      pumpImageQueue();
+    });
+  }
+}
+
+function recordImageVerdict(key, verdict) {
+  if (imageVerdicts.size >= IMAGE_VERDICT_LIMIT) {
+    imageVerdicts.delete(imageVerdicts.keys().next().value);
+  }
+  imageVerdicts.set(key, verdict);
+}
+
+function requestImageVerdict(key, src) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (verdict) => {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      // Any failure (fetch error, dead worker, no GPU) shows the image: fail-open by design.
+      if (verdict) {
+        recordImageVerdict(key, verdict);
+      }
+      scheduleImageSync();
+      resolve();
+    };
+
+    try {
+      chrome.runtime.sendMessage({ type: "cancel-it:classify", url: src }, (response) => {
+        if (chrome.runtime.lastError || !response) {
+          finish("ok");
+        } else if (response.ok) {
+          finish(isExplicitScore(response.p) ? "explicit" : "ok");
+        } else if (response.reason === "unsupported") {
+          imageDetectionUnsupported = true;
+          finish("ok");
+        } else {
+          finish("ok"); // fetch error, timeout, disabled mid-flight...: show it
+        }
+      });
+    } catch (_error) {
+      finish("ok"); // e.g. the extension was reloaded while this tab stayed open
+    }
+  });
+}
+
+function scheduleImageSync() {
+  if (imageSyncTimer) {
+    return;
+  }
+
+  imageSyncTimer = window.setTimeout(() => {
+    imageSyncTimer = 0;
+    syncImages();
+  }, 40);
+}
+
+function hasImageHoldStylesheet() {
+  if (imageHoldPresent === null) {
+    imageHoldPresent = getComputedStyle(document.documentElement).getPropertyValue(IMAGE_HOLD_PROBE_PROPERTY).trim() === "1";
+  }
+  return imageHoldPresent;
+}
+
+// Feature off (or paused, or this site excluded): make sure nothing we did is left on the page.
+function releaseImages() {
+  if (!imageReleaseMarked && hasImageHoldStylesheet()) {
+    document.documentElement.setAttribute(IMAGE_RELEASE_ATTR, "1");
+    imageReleaseMarked = true;
+  }
+
+  if (!imageEverActive) {
+    return; // never wrote anything on this page, so there is nothing to undo
+  }
+
+  for (const img of document.querySelectorAll(`img[${IMAGE_VERIFIED_ATTR}], img[${IMAGE_EXPLICIT_ATTR}]`)) {
+    resetImage(img);
+  }
+}
+
+function syncImages() {
+  try {
+    if (!imageDetectionActive()) {
+      releaseImages();
+      return;
+    }
+
+    if (imageReleaseMarked) {
+      document.documentElement.removeAttribute(IMAGE_RELEASE_ATTR);
+      imageReleaseMarked = false;
+    }
+
+    imageEverActive = true;
+    for (const img of Array.from(document.images)) {
+      evaluateImage(img);
+    }
+  } catch (_error) {
+    // The shield must never break the page or the keyword rescan that calls it.
+  }
+}
+
+function onImageSettled(event) {
+  if (event.target instanceof HTMLImageElement && imageDetectionActive()) {
+    evaluateImage(event.target);
+  }
+}
+
+// Runs as a microtask right after `src`/`srcset` change, before the new picture can paint,
+// so a swapped-in image is held again immediately instead of showing unchecked.
+function onImageSourceMutation(records) {
+  let touchedImage = false;
+  for (const record of records) {
+    let img = record.target;
+    if (img instanceof HTMLSourceElement) {
+      img = img.closest("picture")?.querySelector("img");
+    }
+
+    if (!(img instanceof HTMLImageElement)) {
+      continue; // <script src>, <iframe src>, <video src>...
+    }
+
+    touchedImage = true;
+    if (img.hasAttribute(IMAGE_VERIFIED_ATTR) || img.hasAttribute(IMAGE_EXPLICIT_ATTR)) {
+      resetImage(img);
+    }
+  }
+
+  if (touchedImage) {
+    scheduleImageSync();
+  }
+}
+
+function hideImageHint() {
+  document.getElementById(IMAGE_HINT_ID)?.remove();
+}
+
+// <img> can't hold a label of its own, and inserting one into the page would wake the
+// MutationObserver, so a single tooltip lives on <html> (outside the observed <body>). It only
+// explains why a picture is blurred: there is deliberately no way to reveal it.
+function onImageHover(event) {
+  const img = event.target;
+  if (!(img instanceof HTMLImageElement) || !img.hasAttribute(IMAGE_EXPLICIT_ATTR)) {
+    return;
+  }
+
+  const rect = img.getBoundingClientRect();
+  let hint = document.getElementById(IMAGE_HINT_ID);
+  if (!hint) {
+    hint = document.createElement("div");
+    hint.id = IMAGE_HINT_ID;
+    hint.textContent = "Blurred: possible explicit image";
+    document.documentElement.appendChild(hint);
+  }
+
+  const visibleTop = Math.max(rect.top, 0);
+  const visibleBottom = Math.min(rect.bottom, window.innerHeight);
+  hint.style.setProperty("left", `${rect.left + rect.width / 2}px`, "important");
+  hint.style.setProperty("top", `${(visibleTop + visibleBottom) / 2}px`, "important");
+}
+
+function startImageDetection() {
+  if (imageDetectionStarted || !document.documentElement) {
+    return;
+  }
+
+  imageDetectionStarted = true;
+  ensureStyles(); // the blur rule must exist before the first verdict, which can beat DOMContentLoaded
+  document.addEventListener("load", onImageSettled, true);
+  document.addEventListener("error", onImageSettled, true);
+  window.addEventListener("mouseover", onImageHover, true);
+  window.addEventListener("mouseout", hideImageHint, true);
+  window.addEventListener("scroll", hideImageHint, { capture: true, passive: true });
+
+  imageSourceObserver = new MutationObserver(onImageSourceMutation);
+  imageSourceObserver.observe(document.documentElement, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src", "srcset"]
+  });
+}
+
+function stopImageDetection() {
+  if (!imageDetectionStarted) {
+    return;
+  }
+
+  imageDetectionStarted = false;
+  document.removeEventListener("load", onImageSettled, true);
+  document.removeEventListener("error", onImageSettled, true);
+  window.removeEventListener("mouseover", onImageHover, true);
+  window.removeEventListener("mouseout", hideImageHint, true);
+  window.removeEventListener("scroll", hideImageHint, { capture: true });
+  imageSourceObserver?.disconnect();
+  imageSourceObserver = null;
+  hideImageHint();
+}
+
+// Called after every keyword rescan and after settings load/change, including the paths where
+// the keyword pipeline returns early (filtering off, site rule off, page-blur, focus session):
+// every <img> must always end up released, whatever the rest of the page is doing.
+function reconcileImageDetection(suppressed = imageSuppressed) {
+  imageSuppressed = suppressed;
+  if (settings.imageDetection?.enabled) {
+    startImageDetection();
+  } else {
+    stopImageDetection();
+  }
+
+  syncImages();
+}
+
 function refreshPageSessionState() {
   if (location.href !== currentPageUrl) {
     currentPageUrl = location.href;
@@ -1489,10 +1959,11 @@ function fullRescan() {
   // clear-and-reapply cycle generates mutations that schedule the next rescan
   // forever, burning CPU on every page with at least one match.
   observer?.disconnect();
+  let focusBlock = null;
   try {
     clearBlockedState();
 
-    const focusBlock = getActiveFocusBlock();
+    focusBlock = getActiveFocusBlock();
     if (focusBlock) {
       renderFocusBlock(focusBlock.endsAt);
       return;
@@ -1521,6 +1992,7 @@ function fullRescan() {
   } finally {
     observeBody();
     schedulePageSummarySync();
+    reconcileImageDetection(Boolean(focusBlock));
   }
 }
 
@@ -1598,6 +2070,14 @@ async function init() {
     }
   });
 }
+
+// Runs at document_start, so images can be handled as they load instead of waiting for
+// DOMContentLoaded. The keyword pipeline below still waits for the page to be parsed.
+loadSettings().then(() => {
+  rebuildActiveSettings();
+  // A page covered by a live focus session must not spend bandwidth checking images.
+  reconcileImageDetection(Boolean(getActiveFocusBlock()));
+});
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init, { once: true });

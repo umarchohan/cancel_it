@@ -174,6 +174,7 @@
       relock_minutes: Number(parentLock.relockMinutes || 0),
       blocked_term_count: (settingsState.blockedTerms || []).length,
       temp_mute_count: (settingsState.tempMutedTerms || []).length,
+      image_detection_enabled: Boolean(settingsState.imageDetection?.enabled),
       share_usage_stats: Boolean(settingsState.shareUsageStats)
     };
   }

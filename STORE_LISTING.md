@@ -6,7 +6,7 @@ Hide what you never want to see.
 
 ## Short description
 
-Blur, hide, or replace blocked names and keywords across the sites you browse.
+Hide, blur, or replace blocked names and topics on any site, and optionally blur explicit images. Everything stays on your device.
 
 ## Full description
 
@@ -22,13 +22,17 @@ Use Cancel It to:
 - blur unwanted references instead of removing entire posts
 - replace blocked matches with a neutral placeholder
 - keep your filter list synced in your Chrome profile
+- start a timed Focus session that blocks the distracting sites you choose (ending it needs your Family PIN if you set one)
+- optionally blur sexually explicit pictures automatically (off by default; a small AI model runs
+  on your device and nothing is uploaded)
 
-Current version focuses on keyword and text-context filtering.
+Keyword and text-context filtering is the core of the extension. Explicit-image detection is an
+opt-in extra (added in 0.3.0), as is Focus Mode (also new in 0.3.0; it needs no new permissions and stores only the site list you type).
 
 What this extension does not do:
 
 - no face recognition
-- no pixel-level image classification
+- no uploading of images or page content — image checking, when you turn it on, runs entirely on your device
 - no external account required
 - no subscription required
 
@@ -54,7 +58,7 @@ Productivity
 - Location: No
 - Web history: Processes page content locally to apply user filters; does not transmit externally
 - User activity: Processes visible page content locally to apply user filters; does not transmit externally
-- Website content: Processes visible page text and image metadata locally to apply user filters
+- Website content: Processes visible page text and image metadata locally to apply user filters; if the user opts in to explicit-image detection, also analyses the pictures themselves locally with a bundled model (re-downloaded from their source, analysed in memory, discarded; never transmitted)
 
 ## Privacy practices tab — copy-paste answers (v0.2.0)
 
@@ -91,9 +95,39 @@ Select: **No, I am not using remote code.** (All JavaScript is bundled in the pa
 - Language: **English**
 - Category: **Well-being** (alternative: Tools)
 
+## Privacy practices tab — additions for the image-detection version (0.3.0)
+
+New permissions this version adds: `offscreen`, `scripting`, and an explicit `host_permissions: <all_urls>` (which the all-sites content script already implied — install warnings are unchanged, checked with `chrome.management.getPermissionWarningsByManifest`). The extension also gains a background service worker.
+
+### offscreen justification (reason: BLOBS)
+
+> Explicit-image detection is an optional feature (off by default). To run its bundled machine-learning model on the user's graphics chip, the extension needs a DOM/WebGL context, which a service worker does not have. It creates one offscreen document, only while the feature is on, that downloads a picture as a blob, decodes it, scores it with the model, and answers "explicit or not". The model and its runtime ship inside the package; the offscreen document loads no remote code and sends nothing off the device.
+
+### scripting justification
+
+> Used only to register, while explicit-image detection is on, a tiny document_start content script + stylesheet that keeps a picture invisible from the moment it loads until it has been checked, so nothing flashes on screen unfiltered. It is unregistered as soon as the feature is turned off. The stylesheet also expires by itself after 4 seconds, so a slow check can never leave a page with missing pictures.
+
+### Host permission justification — addition
+
+> If the user turns on explicit-image detection, the extension re-downloads each picture on the page from its own source (without cookies) so the on-device model can analyse it; pictures are frequently hosted on other domains than the page, so this needs access to all sites, and the content script already runs on all sites. Nothing is uploaded.
+
+### Remote code use — unchanged (No)
+
+TensorFlow.js (`vendor/tf.es2017.min.js`, Apache-2.0) and the model weights (`models/nsfw/`, MIT, from NSFWJS/GantMan) are bundled in the package and licences are in `vendor/THIRD_PARTY_LICENSES.txt`. The ES2017 build is used deliberately: the default `tf.min.js` calls `Function()` at load, which Manifest V3's CSP forbids. Nothing is fetched or evaluated at runtime.
+
+### Data usage section — unchanged categories
+
+Images are analysed locally and never transmitted, so no new data-collection category applies. The opt-in GA4 events gain one boolean (`image_detection_enabled`); the toggle copy already says "which features are used". Privacy policy updated in both copies (`extension/PRIVACY.html`, `docs/privacy.html`) — push `docs/` before submitting.
+
 ## Reviewer notes
 
 - Open extension options page
 - Add `Jennifer Lopez` as blocked term
 - Visit any page containing that text
 - Confirm only matching references are blurred/hidden/replaced according to selected mode
+
+Explicit-image detection (optional, off by default):
+
+- Options → Filtering style → "Explicit images" → turn on "Detect explicit images automatically" → Save
+- The status line under the switch should read "Ready" after a few seconds (it needs WebGL; on machines without it the line says "Not available" and pictures are shown normally)
+- Browse any image-heavy page (e.g. a Wikipedia article): pictures appear normally; anything the model flags is blurred and stays blurred (hovering it explains why). The model is imperfect, so on a normal page a few harmless pictures may get blurred (e.g. the cat-claw photo on Wikipedia's "Cat" article). No explicit test content is needed or supplied.

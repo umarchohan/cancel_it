@@ -1,0 +1,29 @@
+/*
+ * Registered at document_start by background.js (together with image-hold.js), and ONLY while
+ * explicit-image detection is on. Keeps every <img> invisible from the moment it loads until
+ * content.js has checked it, so nothing flashes before the verdict.
+ *
+ * It fails open by construction, with no script involved in the timing: once an image has
+ * loaded (image-hold.js marks it data-cancel-it-loaded) the hold expires by itself after 4s.
+ * A dead service worker, a slow model, or a content script that never runs can therefore never
+ * leave a page with missing pictures. The 4s clock deliberately starts at load, not at
+ * insertion, because lazy and slow images load long after their element appears.
+ *
+ * content.js ends the hold early by setting data-cancel-it-verified on an image, or for the
+ * whole page with data-cancel-it-image-release on <html> (feature off / site excluded).
+ */
+@keyframes cancel-it-image-hold {
+  0%, 99.9% { visibility: hidden; }
+}
+
+html { --cancel-it-image-hold: 1; }
+
+/* Not loaded yet: nothing to see, but must not become visible unchecked the instant it loads. */
+html:not([data-cancel-it-image-release]) img:not([data-cancel-it-verified]):not([data-cancel-it-loaded]) {
+  visibility: hidden !important;
+}
+
+/* Loaded, verdict pending: hold for at most 4s. Not !important so the animation can expire. */
+html:not([data-cancel-it-image-release]) img:not([data-cancel-it-verified])[data-cancel-it-loaded] {
+  animation: cancel-it-image-hold 4s linear;
+}
