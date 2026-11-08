@@ -54,6 +54,10 @@
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
             Focus
           </button>
+          <button class="nav-item" data-section="social" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"></rect><path d="M11 18.5h2"></path></svg>
+            Social media
+          </button>
           <button class="nav-item" data-section="appearance" type="button">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"></path><circle cx="16" cy="8" r="2"></circle><circle cx="8" cy="16" r="2"></circle></svg>
             Filtering style
@@ -206,6 +210,10 @@
               <p class="card-sub">Add any site you want fully blocked during a focus session.</p>
               <div id="focus-site-list" class="row-list"></div>
               <p id="focus-sites-empty" class="empty-note">No sites added yet.</p>
+              <div id="focus-access-note" class="access-note hidden" role="status">
+                <p id="focus-access-text"></p>
+                <button id="focus-access-button" class="button-primary" type="button">Allow access</button>
+              </div>
               <div class="inline-row add-rule-row">
                 <input id="focus-site-domain" class="text-input grow" type="text" placeholder="Add a site, e.g. reddit.com" aria-label="Website to block during focus sessions">
                 <button id="add-focus-site-button" class="button-primary" type="button">Add site</button>
@@ -316,6 +324,69 @@
               </div>
               <p id="image-detection-status" class="image-detection-status hidden" role="status"></p>
             </div>
+          </section>
+
+          <!-- Social media -->
+          <section id="section-social" class="section hidden" data-title="Social media">
+            <div class="section-intro">
+              <h2 class="section-title">Social media</h2>
+              <p class="section-sub">Make social media and YouTube less pull-you-in: black &amp; white, no recommendations, no short-video feeds. Changes apply straight away.</p>
+            </div>
+
+            <div class="card">
+              <div class="pin-toggle-row">
+                <div>
+                  <p class="card-title">Black &amp; white social media</p>
+                  <p class="card-sub tight">The sites below lose their colour while you use them, which makes endless scrolling less tempting. Pictures and videos on them turn black and white too.</p>
+                </div>
+                <button id="grayscale-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="Black and white social media"><span class="knob"></span></button>
+              </div>
+              <div id="grayscale-site-list" class="row-list social-site-list"></div>
+              <p id="grayscale-sites-empty" class="empty-note hidden">No sites in the list, so nothing turns black and white.</p>
+              <div class="inline-row add-rule-row">
+                <input id="grayscale-site-domain" class="text-input grow" type="text" placeholder="Add a site, e.g. discord.com" aria-label="Website to show in black and white">
+                <button id="add-grayscale-site-button" class="button-primary" type="button">Add site</button>
+              </div>
+              <button id="grayscale-reset-button" class="link-button hidden" type="button">Restore the default list</button>
+            </div>
+
+            <div class="card">
+              <div class="pin-toggle-row">
+                <div>
+                  <p class="card-title">YouTube: search only</p>
+                  <p class="card-sub tight">Hides the home feed, the recommended videos next to and after a video, Shorts, and YouTube's side menu. You can still search, and watch whatever you searched for. Shorts links open as normal videos, and YouTube's autoplay is switched off.</p>
+                </div>
+                <button id="youtube-search-only-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="YouTube search only"><span class="knob"></span></button>
+              </div>
+            </div>
+
+            <div class="card">
+              <p class="card-title">Short videos</p>
+              <p class="card-sub">Hide the endless swipe-to-the-next-video feeds. Each one is separate.</p>
+              <div class="pin-toggle-row short-video-row">
+                <div>
+                  <p class="card-title small">YouTube Shorts</p>
+                  <p class="card-sub tight">Removed from YouTube's menu, home page, search results and channels. A Shorts link opens as a normal video, without the swipe to the next one.</p>
+                </div>
+                <button id="hide-yt-shorts-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="Hide YouTube Shorts"><span class="knob"></span></button>
+              </div>
+              <div class="pin-toggle-row short-video-row">
+                <div>
+                  <p class="card-title small">Instagram Reels</p>
+                  <p class="card-sub tight">Removes the Reels tab and reels in your feed. Opening the Reels feed takes you back to your home feed. A single reel someone sends you still opens.</p>
+                </div>
+                <button id="hide-ig-reels-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="Hide Instagram Reels"><span class="knob"></span></button>
+              </div>
+              <div class="pin-toggle-row short-video-row">
+                <div>
+                  <p class="card-title small">Facebook Reels</p>
+                  <p class="card-sub tight">Removes reels from your feed and menu. Opening a reel takes you back to your home feed.</p>
+                </div>
+                <button id="hide-fb-reels-toggle" class="switch" type="button" role="switch" aria-checked="false" aria-label="Hide Facebook Reels"><span class="knob"></span></button>
+              </div>
+            </div>
+
+            <p class="section-footnote">Everything here follows the main Filtering on/off switch, and works on these websites in Chrome, not in phone apps.</p>
           </section>
 
           <!-- Family controls -->

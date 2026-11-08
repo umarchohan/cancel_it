@@ -45,8 +45,38 @@ const DEFAULT_SETTINGS = {
   },
   imageDetection: {
     enabled: false
+  },
+  // `sites` is left out on purpose: missing means "use DEFAULT_GRAYSCALE_SITES", while an
+  // empty array is the user's own choice of no sites.
+  socialGrayscale: {
+    enabled: false
+  },
+  youtubeSearchOnly: {
+    enabled: false
+  },
+  shortVideos: {
+    youtubeShorts: false,
+    instagramReels: false,
+    facebookReels: false
   }
 };
+// Keep in sync with DEFAULT_GRAYSCALE_SITES in options.js.
+const DEFAULT_GRAYSCALE_SITES = [
+  "facebook.com", "instagram.com", "x.com", "twitter.com", "tiktok.com", "reddit.com",
+  "snapchat.com", "threads.com", "threads.net", "linkedin.com", "pinterest.com", "tumblr.com",
+  "youtube.com"
+];
+// Exact hosts only: music.youtube.com, studio.youtube.com and m.youtube.com have different
+// pages that these rules weren't written or tested for.
+const YOUTUBE_HOSTS = new Set(["www.youtube.com", "youtube.com"]);
+const GRAYSCALE_ATTR = "data-cancel-it-grayscale";
+const GRAYSCALE_RELEASE_ATTR = "data-cancel-it-color";
+const GRAYSCALE_SHEET_PROBE_PROPERTY = "--cancel-it-grayscale-sheet";
+const YT_SEARCH_ONLY_ATTR = "data-cancel-it-yt-search-only";
+const NO_YT_SHORTS_ATTR = "data-cancel-it-no-yt-shorts";
+const NO_IG_REELS_ATTR = "data-cancel-it-no-ig-reels";
+const NO_FB_REELS_ATTR = "data-cancel-it-no-fb-reels";
+const IG_SINGLE_REEL_ATTR = "data-cancel-it-ig-single-reel";
 
 const STYLE_ID = "cancel-it-styles";
 const FOCUS_OVERLAY_ID = "cancel-it-focus-overlay";
@@ -158,6 +188,7 @@ let activeSettings = {
 let pageSummarySyncTimer = null;
 let lastPersistedSummarySignature = "";
 let focusCountdownTimer = null;
+let stylesWritten = false;
 
 // Explicit-image detection state. Verdicts are keyed by image URL and outlive DOM churn, because
 // fullRescan() and site re-renders happen constantly but classification is slow and async.
@@ -172,6 +203,15 @@ let imageDetectionStarted = false;
 let imageSourceObserver = null;
 let imageHoldPresent = null; // did the early hold stylesheet load on this page? null = not looked yet
 let imageReleaseMarked = false;
+// Autoplay is checked per video for a short settling window, because YouTube first draws the
+// switch as "off" and only then flips it to the saved preference. After the window we stop, so
+// someone who deliberately turns autoplay back on for this video isn't fought.
+const YOUTUBE_AUTOPLAY_WINDOW_MS = 15000;
+let youtubeAutoplay = { videoId: "", since: 0, done: false, lastClick: 0 };
+let grayscaleSheetPresent = null; // did background.js's early stylesheet load here? null = not looked
+// Page-level rules (redirects, autoplay) run on their own light timer: on YouTube the page
+// changes so constantly that the debounced keyword rescan can be postponed for long stretches.
+let calmTimer = 0;
 let imageEverActive = false;
 // Images this script itself settled. A page (or restored saved HTML) can carry a copy of our
 // data-cancel-it-verified attribute; only trust the marker on elements we verified.
@@ -270,11 +310,14 @@ function expandTermsWithVariants(terms) {
 }
 
 function ensureStyles() {
-  if (document.getElementById(STYLE_ID)) {
+  const existing = document.getElementById(STYLE_ID);
+  if (existing && stylesWritten) {
     return;
   }
 
-  const style = document.createElement("style");
+  // A tab left open across an extension update still holds the previous version's stylesheet,
+  // so the first call from this copy of the script always rewrites it.
+  const style = existing || document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
     [${FLAG_ATTR}="hide"] {
@@ -354,6 +397,74 @@ function ensureStyles() {
       filter: blur(26px) saturate(0.2) !important;
       clip-path: inset(0) !important;
       user-select: none !important;
+    }
+
+    /* Black & white social media. A filter on the root element is the one place it doesn't
+       turn into a containing block, so fixed headers and overlays on the page keep working. */
+    html[${GRAYSCALE_ATTR}] {
+      filter: grayscale(1) !important;
+    }
+
+    /* YouTube, search only. Everything is keyed on the <html> attribute so YouTube's own
+       in-page navigation needs no script. These selectors track YouTube's markup and will
+       need updating when YouTube changes it (qa-fixtures/e2e/social-live.js checks them). */
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-browse[page-subtype="home"] ytd-two-column-browse-results-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-browse[page-subtype="home"] ytd-feed-filter-chip-bar-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] #guide-button,
+    html[${YT_SEARCH_ONLY_ATTR}] tp-yt-app-drawer#guide,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-mini-guide-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search grid-shelf-view-model,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search ytd-reel-shelf-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search ytd-shelf-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search ytd-horizontal-card-list-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search ytm-shorts-lockup-view-model,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-search ytd-video-renderer:has(a[href^="/shorts/"]),
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-watch-flexy #related,
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-watch-next-secondary-results-renderer,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .html5-endscreen,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .ytp-endscreen-content,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .ytp-autonav-endscreen-countdown-overlay,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .ytp-ce-element,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .ytp-pause-overlay,
+    html[${YT_SEARCH_ONLY_ATTR}] #movie_player .ytp-fullscreen-grid {
+      display: none !important;
+    }
+
+    /* With the side menu gone, don't leave its empty gutter on the left. */
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-page-manager {
+      margin-left: 0 !important;
+    }
+
+    /* Short videos. YouTube rules were checked against live YouTube; the Instagram and
+       Facebook ones only against logged-out pages, since their feeds need an account. */
+    html[${NO_YT_SHORTS_ATTR}] ytd-reel-shelf-renderer,
+    html[${NO_YT_SHORTS_ATTR}] ytd-rich-shelf-renderer[is-shorts],
+    html[${NO_YT_SHORTS_ATTR}] ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),
+    html[${NO_YT_SHORTS_ATTR}] grid-shelf-view-model:has(ytm-shorts-lockup-view-model),
+    html[${NO_YT_SHORTS_ATTR}] ytm-shorts-lockup-view-model,
+    html[${NO_YT_SHORTS_ATTR}] ytd-video-renderer:has(a[href^="/shorts/"]),
+    html[${NO_YT_SHORTS_ATTR}] ytd-rich-item-renderer:has(a[href^="/shorts/"]),
+    html[${NO_YT_SHORTS_ATTR}] ytd-grid-video-renderer:has(a[href^="/shorts/"]),
+    html[${NO_YT_SHORTS_ATTR}] yt-lockup-view-model:has(a[href^="/shorts/"]),
+    html[${NO_YT_SHORTS_ATTR}] ytd-guide-entry-renderer:has(a[title="Shorts"]),
+    html[${NO_YT_SHORTS_ATTR}] ytd-mini-guide-entry-renderer[aria-label="Shorts"],
+    html[${NO_YT_SHORTS_ATTR}] yt-tab-shape[tab-title="Shorts"],
+    html[${NO_IG_REELS_ATTR}] a[href="/reels/"],
+    html[${NO_IG_REELS_ATTR}] a[href$="/reels/"],
+    html[${NO_IG_REELS_ATTR}]:not([${IG_SINGLE_REEL_ATTR}]) article:has(a[href*="/reel/"]),
+    html[${NO_FB_REELS_ATTR}] a[href*="facebook.com/reel"],
+    html[${NO_FB_REELS_ATTR}] a[href^="/reel"],
+    html[${NO_FB_REELS_ATTR}] [role="feed"] > div:has(a[href*="/reel/"]) {
+      display: none !important;
+    }
+
+    html[${YT_SEARCH_ONLY_ATTR}] ytd-browse[page-subtype="home"]::before {
+      content: "Search for what you came for.";
+      display: block;
+      margin: 18vh auto 0;
+      text-align: center;
+      font: 500 20px/1.4 Roboto, Arial, sans-serif;
+      color: var(--yt-spec-text-secondary, #606060);
     }
 
     #${IMAGE_HINT_ID} {
@@ -485,7 +596,10 @@ function ensureStyles() {
     }
   `;
 
-  document.documentElement.appendChild(style);
+  if (!existing) {
+    document.documentElement.appendChild(style);
+  }
+  stylesWritten = true;
 }
 
 function applyAssetStyles() {
@@ -1900,6 +2014,188 @@ function reconcileImageDetection(suppressed = imageSuppressed) {
   syncImages();
 }
 
+// ---------------------------------------------------------------------------
+// Calm modes (the options page's "Social media" section): black & white social media,
+// YouTube search only, and hiding YouTube Shorts / Instagram Reels / Facebook Reels.
+// All follow the master on/off switch but not the keyword site rules (they have their own
+// site list / hosts). State lives in attributes on <html>, outside the observed <body>, and the
+// CSS in ensureStyles() does the rest, so applying them never triggers a rescan.
+// ---------------------------------------------------------------------------
+
+function getGrayscaleSites() {
+  const sites = settings.socialGrayscale?.sites;
+  return Array.isArray(sites) ? sites : DEFAULT_GRAYSCALE_SITES;
+}
+
+function isGrayscaleActive() {
+  return settings.enabled !== false
+    && Boolean(settings.socialGrayscale?.enabled)
+    && getGrayscaleSites().some((site) => matchesSitePattern(site, location.hostname));
+}
+
+function isOnSite(domain) {
+  return matchesSitePattern(domain, location.hostname);
+}
+
+function shortVideoFlags() {
+  const on = settings.enabled !== false;
+  const prefs = settings.shortVideos || {};
+  return {
+    youtubeShorts: on && Boolean(prefs.youtubeShorts) && YOUTUBE_HOSTS.has(location.hostname),
+    instagramReels: on && Boolean(prefs.instagramReels) && isOnSite("instagram.com"),
+    facebookReels: on && Boolean(prefs.facebookReels) && isOnSite("facebook.com")
+  };
+}
+
+function isYouTubeSearchOnlyActive() {
+  return settings.enabled !== false
+    && Boolean(settings.youtubeSearchOnly?.enabled)
+    && YOUTUBE_HOSTS.has(location.hostname);
+}
+
+function setRootFlag(name, on) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  if (on && !root.hasAttribute(name)) {
+    root.setAttribute(name, "");
+  } else if (!on && root.hasAttribute(name)) {
+    root.removeAttribute(name);
+  }
+}
+
+// Endless short-video feeds can't be hidden with CSS alone, because they are whole pages.
+// A YouTube Shorts link opens as a normal video page (same video, no swipe-to-next); the
+// Instagram Reels feed and Facebook's reel viewer go back to the home feed instead.
+// location.replace keeps the Back button pointing at the page the person came from.
+function redirectShortVideoPages(flags, youtubeSearchOnly) {
+  const path = location.pathname;
+
+  if (flags.youtubeShorts || youtubeSearchOnly) {
+    const shorts = path.match(/^\/shorts\/([\w-]{6,})/);
+    if (shorts) {
+      location.replace(`/watch?v=${shorts[1]}`);
+      return true;
+    }
+  }
+
+  if (flags.instagramReels && /^\/reels(\/|$)/.test(path)) {
+    location.replace("/");
+    return true;
+  }
+
+  if (flags.facebookReels && /^\/reels?(\/|$)/.test(path)) {
+    location.replace("/");
+    return true;
+  }
+
+  return false;
+}
+
+// Autoplay would start a recommended video when this one ends, so with "search only" it is
+// switched off (YouTube's own setting) during the first seconds of each video; see
+// YOUTUBE_AUTOPLAY_WINDOW_MS. Not switched back on when the feature goes off.
+function turnOffYouTubeAutoplay() {
+  if (location.pathname !== "/watch") {
+    return;
+  }
+
+  const videoId = new URLSearchParams(location.search).get("v") || "";
+  if (!videoId) {
+    return;
+  }
+
+  if (youtubeAutoplay.videoId !== videoId) {
+    youtubeAutoplay = { videoId, since: 0, done: false, lastClick: 0 };
+  }
+
+  if (youtubeAutoplay.done) {
+    return;
+  }
+
+  const toggle = document.querySelector("#movie_player .ytp-autonav-toggle-button");
+  if (!toggle) {
+    return; // player not built yet (slow connections can take a while)
+  }
+
+  // The window starts when the switch first appears, not when the page does.
+  if (!youtubeAutoplay.since) {
+    youtubeAutoplay.since = Date.now();
+  } else if (Date.now() - youtubeAutoplay.since > YOUTUBE_AUTOPLAY_WINDOW_MS) {
+    youtubeAutoplay.done = true;
+    return;
+  }
+
+  const state = toggle.getAttribute("aria-checked");
+  if (state === "false" && youtubeAutoplay.lastClick) {
+    youtubeAutoplay.done = true; // our click took effect
+  } else if (state === "true" && Date.now() - youtubeAutoplay.lastClick > 1500) {
+    // A click before the player is ready is silently ignored, so keep trying (spaced out, so
+    // a slow click can't be undone by the next one) until it reads "off".
+    toggle.click();
+    youtubeAutoplay.lastClick = Date.now();
+  }
+}
+
+function hasGrayscaleSheet() {
+  if (grayscaleSheetPresent === null) {
+    grayscaleSheetPresent = getComputedStyle(document.documentElement).getPropertyValue(GRAYSCALE_SHEET_PROBE_PROPERTY).trim() === "1";
+  }
+  return grayscaleSheetPresent;
+}
+
+function runPageRules() {
+  const youtubeSearchOnly = isYouTubeSearchOnlyActive();
+  const flags = shortVideoFlags();
+  const needed = youtubeSearchOnly || flags.youtubeShorts || flags.instagramReels || flags.facebookReels;
+
+  // A single reel someone sent (/reel/ID) stays watchable; only the feed and Reels tab go.
+  setRootFlag(IG_SINGLE_REEL_ATTR, flags.instagramReels && /^\/reel\//.test(location.pathname));
+
+  if (!needed) {
+    window.clearInterval(calmTimer);
+    calmTimer = 0;
+    return;
+  }
+
+  if (!calmTimer) {
+    calmTimer = window.setInterval(runPageRules, 500);
+  }
+
+  try {
+    if (redirectShortVideoPages(flags, youtubeSearchOnly)) {
+      return;
+    }
+    if (youtubeSearchOnly) {
+      turnOffYouTubeAutoplay();
+    }
+  } catch (_error) {
+    // A site changed its markup under us; the CSS part still works.
+  }
+}
+
+function applyCalmModes() {
+  if (!document.documentElement) {
+    return;
+  }
+
+  ensureStyles();
+  const grayscale = isGrayscaleActive();
+  setRootFlag(GRAYSCALE_ATTR, grayscale);
+  // background.js's stylesheet may still be on a page opened before a settings change.
+  setRootFlag(GRAYSCALE_RELEASE_ATTR, !grayscale && hasGrayscaleSheet());
+
+  setRootFlag(YT_SEARCH_ONLY_ATTR, isYouTubeSearchOnlyActive());
+  const flags = shortVideoFlags();
+  setRootFlag(NO_YT_SHORTS_ATTR, flags.youtubeShorts);
+  setRootFlag(NO_IG_REELS_ATTR, flags.instagramReels);
+  setRootFlag(NO_FB_REELS_ATTR, flags.facebookReels);
+
+  runPageRules();
+}
+
 function refreshPageSessionState() {
   if (location.href !== currentPageUrl) {
     currentPageUrl = location.href;
@@ -1993,6 +2289,7 @@ function fullRescan() {
     observeBody();
     schedulePageSummarySync();
     reconcileImageDetection(Boolean(focusBlock));
+    applyCalmModes();
   }
 }
 
@@ -2042,6 +2339,14 @@ function loadSettings() {
   });
 }
 
+// Lets background.js tell a live copy of this script from a dead one left behind by an
+// extension update/reload (see injectIntoOpenTabs there).
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id === chrome.runtime.id && message?.type === "cancel-it:ping") {
+    sendResponse({ alive: true });
+  }
+});
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "sync" && changes[STORAGE_KEY]) {
     settings = { ...DEFAULT_SETTINGS, ...(changes[STORAGE_KEY].newValue || {}) };
@@ -2077,6 +2382,8 @@ loadSettings().then(() => {
   rebuildActiveSettings();
   // A page covered by a live focus session must not spend bandwidth checking images.
   reconcileImageDetection(Boolean(getActiveFocusBlock()));
+  // As early as possible, so a social site doesn't paint in colour first.
+  applyCalmModes();
 });
 
 if (document.readyState === "loading") {

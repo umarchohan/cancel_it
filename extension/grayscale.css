@@ -1,0 +1,13 @@
+/*
+ * Registered at document_start by background.js for the black & white site list, and only
+ * while that feature (and filtering) is on. Chrome applies it before the page draws anything,
+ * so a listed site never flashes in colour first. content.js owns the live state: it adds
+ * data-cancel-it-grayscale when the page should be black and white (for pages opened before
+ * a change) and data-cancel-it-color when it shouldn't (e.g. switched off while open).
+ * A filter on the root element doesn't become a containing block, so fixed headers keep working.
+ */
+html { --cancel-it-grayscale-sheet: 1; }
+
+html:not([data-cancel-it-color]) {
+  filter: grayscale(1) !important;
+}

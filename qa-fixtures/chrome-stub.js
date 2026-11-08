@@ -33,6 +33,9 @@
       ],
       focusMode: { blockedSites: [], active: false, sessionEndsAt: null },
       imageDetection: { enabled: false },
+      socialGrayscale: { enabled: false },
+      youtubeSearchOnly: { enabled: false },
+      shortVideos: { youtubeShorts: false, instagramReels: false, facebookReels: false },
       parentLock: { enabled: false, pinHash: "", pinSalt: "", relockMinutes: 5 }
     }
   };
@@ -106,6 +109,10 @@
       getManifest: () => ({ version: "0.2.0" }),
       openOptionsPage: () => alert("openOptionsPage()"),
       getURL: (p) => p
+    },
+    permissions: {
+      contains: () => Promise.resolve(true),
+      request: () => Promise.resolve(true)
     },
     tabs: {
       query: () => Promise.resolve([{ url: "https://www.facebook.com/" }]),

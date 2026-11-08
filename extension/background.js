@@ -1,11 +1,20 @@
-// Service worker for on-device explicit-image detection. It exists for three jobs and does
-// nothing else: (1) register/unregister the early "hold" stylesheet, (2) own the offscreen
-// document that runs the model, (3) relay classify requests from content scripts to it.
-// Everything is inert unless the user has switched "Detect explicit images" on.
+// Service worker. Its jobs: (1) for explicit-image detection, register/unregister the early
+// "hold" stylesheet, own the offscreen document that runs the model, and relay classify
+// requests from content scripts to it; (2) register the black & white stylesheet for the
+// social site list, so those sites never paint in colour first; (3) repair already-open tabs
+// after an install/update. Everything else (keyword filtering, focus mode, settings) never
+// goes through here.
 
 const STORAGE_KEY = "cancelItSettings";
 const STATUS_KEY = "cancelItImageStatus"; // storage.session: read by the options page
 const HOLD_SCRIPT_ID = "cancel-it-image-hold";
+const GRAYSCALE_SCRIPT_ID = "cancel-it-grayscale";
+// Keep in sync with DEFAULT_GRAYSCALE_SITES in content.js and options.js.
+const DEFAULT_GRAYSCALE_SITES = [
+  "facebook.com", "instagram.com", "x.com", "twitter.com", "tiktok.com", "reddit.com",
+  "snapchat.com", "threads.com", "threads.net", "linkedin.com", "pinterest.com", "tumblr.com",
+  "youtube.com"
+];
 const OFFSCREEN_URL = "offscreen.html";
 const MESSAGE_PREFIX = "cancel-it:";
 
@@ -75,17 +84,59 @@ async function closeOffscreenDocument() {
 // Sites where the user turned filtering "off" don't need the hold stylesheet. content.js stays
 // the source of truth (it also releases the page), so this only saves a pointless delay and a
 // bad pattern must never stop the feature: see the fallback in syncHoldScript.
-function buildExcludeMatches(settings) {
-  const hosts = (settings.siteRules || [])
-    .filter((rule) => rule?.enabled !== false && rule?.mode === "off" && typeof rule.pattern === "string")
-    .map((rule) => rule.pattern.toLowerCase().trim())
-    .filter((pattern) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(pattern));
+// Site/domain strings typed by the user -> match patterns covering the domain and its subdomains.
+function hostsToMatchPatterns(hosts) {
+  const valid = hosts
+    .filter((host) => typeof host === "string")
+    .map((host) => host.toLowerCase().trim())
+    .filter((host) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host));
 
-  return Array.from(new Set(hosts)).map((host) => {
+  return Array.from(new Set(valid)).map((host) => {
     // A wildcard subdomain prefix is only valid on a real multi-label domain name.
     const wildcardOk = host.includes(".") && !/^\d+(\.\d+){3}$/.test(host);
     return wildcardOk ? `*://*.${host}/*` : `*://${host}/*`;
   });
+}
+
+function buildExcludeMatches(settings) {
+  return hostsToMatchPatterns((settings.siteRules || [])
+    .filter((rule) => rule?.enabled !== false && rule?.mode === "off")
+    .map((rule) => rule.pattern));
+}
+
+async function syncGrayscaleScript() {
+  const settings = await readSettings();
+  const grayscale = settings.socialGrayscale || {};
+  const sites = Array.isArray(grayscale.sites) ? grayscale.sites : DEFAULT_GRAYSCALE_SITES;
+  const matches = settings.enabled !== false && grayscale.enabled ? hostsToMatchPatterns(sites) : [];
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [GRAYSCALE_SCRIPT_ID] });
+
+  if (!matches.length) {
+    if (existing.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: [GRAYSCALE_SCRIPT_ID] });
+    }
+    return;
+  }
+
+  const script = {
+    id: GRAYSCALE_SCRIPT_ID,
+    css: ["grayscale.css"],
+    matches,
+    runAt: "document_start",
+    allFrames: false,
+    persistAcrossSessions: true
+  };
+
+  try {
+    if (existing.length) {
+      await chrome.scripting.updateContentScripts([script]);
+    } else {
+      await chrome.scripting.registerContentScripts([script]);
+    }
+  } catch (error) {
+    // A pattern Chrome rejects: content.js still applies black & white, just a moment later.
+    console.warn("Cancel It: black & white stylesheet not registered", error);
+  }
 }
 
 async function registerHoldScript(script, exists) {
@@ -155,9 +206,9 @@ async function syncImageDetection() {
 }
 
 function scheduleSync() {
-  syncChain = syncChain.then(syncImageDetection).catch((error) => {
-    console.warn("Cancel It: image detection sync failed", error);
-  });
+  syncChain = syncChain
+    .then(() => syncImageDetection().catch((error) => console.warn("Cancel It: image detection sync failed", error)))
+    .then(() => syncGrayscaleScript().catch((error) => console.warn("Cancel It: black & white sync failed", error)));
   return syncChain;
 }
 
@@ -259,8 +310,38 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+// Chrome never injects an installed or updated extension into tabs that were already open, and
+// after a reload the old content script in those tabs is dead (its chrome.* calls throw). Long-lived
+// tabs (Facebook, mail, feeds) are exactly the ones people leave open for days, so without this a
+// Focus session started after an update would silently not apply to them until they refresh.
+// A live content script answers the ping; anything that doesn't gets a fresh copy.
+async function injectIntoOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+  for (const tab of tabs) {
+    if (tab.id == null || tab.discarded) {
+      continue; // a discarded tab gets the normal content script when it reloads
+    }
+
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: `${MESSAGE_PREFIX}ping` }, { frameId: 0 });
+      continue; // answered: already running the current script
+    } catch (_error) {
+      // no receiver: fall through and inject
+    }
+
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+    } catch (_error) {
+      // restricted page (Web Store, error pages), or the tab closed while we worked
+    }
+  }
+}
+
+chrome.runtime.onInstalled.addListener((details) => {
   scheduleSync();
+  if (details.reason === "install" || details.reason === "update") {
+    injectIntoOpenTabs().catch(() => {});
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {

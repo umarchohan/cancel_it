@@ -6,7 +6,7 @@ Hide what you never want to see.
 
 ## Short description
 
-Hide, blur, or replace blocked names and topics on any site, and optionally blur explicit images. Everything stays on your device.
+Filter names, topics and explicit images, block distracting sites, and calm social media. Everything stays on your device.
 
 ## Full description
 
@@ -23,6 +23,9 @@ Use Cancel It to:
 - replace blocked matches with a neutral placeholder
 - keep your filter list synced in your Chrome profile
 - start a timed Focus session that blocks the distracting sites you choose (ending it needs your Family PIN if you set one)
+- turn social media black & white, so endless scrolling is less tempting
+- use YouTube for search only: no home feed, no recommended videos, no autoplay
+- hide YouTube Shorts, Instagram Reels and Facebook Reels
 - optionally blur sexually explicit pictures automatically (off by default; a small AI model runs
   on your device and nothing is uploaded)
 
@@ -64,7 +67,9 @@ Productivity
 
 ### Single purpose description
 
-> Cancel It lets users hide, blur, or replace words, names, and topics they choose (a personal blocklist plus optional keyword packs) on the webpages they visit. All page scanning happens locally in the browser; nothing is uploaded.
+> Cancel It reduces unwanted and distracting content on the webpages a user visits: it hides, blurs, or replaces words, names, and topics they choose (and, optionally, explicit images), blocks distracting sites during a timed focus session, and makes social media less compulsive (black & white mode, YouTube without recommendations, no short-video feeds). Everything runs locally in the browser; nothing is uploaded.
+
+(Rewritten for the Social media version. The store enforces a *single* purpose; every feature is framed as one purpose — less unwanted and distracting content — rather than a list of tools. If a reviewer still objects, the fallback is to split Focus/Social media into a separate extension.)
 
 ### activeTab justification
 
@@ -106,6 +111,10 @@ New permissions this version adds: `offscreen`, `scripting`, and an explicit `ho
 ### scripting justification
 
 > Used only to register, while explicit-image detection is on, a tiny document_start content script + stylesheet that keeps a picture invisible from the moment it loads until it has been checked, so nothing flashes on screen unfiltered. It is unregistered as soon as the feature is turned off. The stylesheet also expires by itself after 4 seconds, so a slow check can never leave a page with missing pictures.
+
+For builds after 0.3.0 (open-tab repair + Social media), use this full scripting justification instead:
+
+> Used for three things, each only with the extension's own bundled files: (1) while explicit-image detection is on, it registers a tiny document_start script + stylesheet that keeps a picture invisible from the moment it loads until it has been checked (unregistered when the feature is off; the stylesheet also expires by itself after 4 seconds, so a slow check can never leave a page with missing pictures); (2) while black & white mode is on, it registers a one-line stylesheet for the user's own list of social sites so they don't flash in colour before turning grey (unregistered when the mode is off); (3) once, right after the extension is installed or updated, it adds the extension's own content script to tabs that were already open (Chrome does not do this itself), so filtering and focus sessions work without refreshing every tab.
 
 ### Host permission justification — addition
 

@@ -686,6 +686,55 @@ textarea.text-input {
   border-top: 1px solid var(--border-soft);
 }
 
+/* Social media */
+
+/* Thirteen default sites: a two/three-column grid instead of a tall single column. */
+.social-site-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.social-site-list .list-row {
+  padding: 6px 6px 6px 14px;
+}
+
+.social-site-list .rule-domain {
+  min-width: 0;
+}
+
+.link-button {
+  margin-top: 10px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.short-video-row {
+  padding: 12px 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.short-video-row:last-child {
+  padding-bottom: 0;
+}
+
+.card-title.small {
+  font-size: 14px;
+}
+
+.section-footnote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* Filtering style */
 
 .option-grid {
@@ -806,6 +855,29 @@ textarea.text-input {
   border-color: var(--amber-border);
   background: var(--amber-soft);
   color: var(--amber-text);
+}
+
+.access-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--amber-border);
+  border-radius: 10px;
+  background: var(--amber-soft);
+  color: var(--amber-text);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.access-note p {
+  margin: 0;
+}
+
+.access-note button {
+  flex: none;
 }
 
 .pin-config {

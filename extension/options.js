@@ -67,6 +67,18 @@ const DEFAULT_SETTINGS = {
   imageDetection: {
     enabled: false
   },
+  socialGrayscale: {
+    enabled: false,
+    sites: null // null = the default list; see getGrayscaleSites()
+  },
+  youtubeSearchOnly: {
+    enabled: false
+  },
+  shortVideos: {
+    youtubeShorts: false,
+    instagramReels: false,
+    facebookReels: false
+  },
   focusMode: {
     blockedSites: [],
     active: false,
@@ -81,6 +93,12 @@ const DEFAULT_SETTINGS = {
 };
 
 const FOCUS_DURATION_PRESETS = [25, 50, 90];
+// Keep in sync with DEFAULT_GRAYSCALE_SITES in content.js.
+const DEFAULT_GRAYSCALE_SITES = [
+  "facebook.com", "instagram.com", "x.com", "twitter.com", "tiktok.com", "reddit.com",
+  "snapchat.com", "threads.com", "threads.net", "linkedin.com", "pinterest.com", "tumblr.com",
+  "youtube.com"
+];
 
 const MODE_LABELS = {
   blur: "Blur it",
@@ -125,7 +143,7 @@ const HELP_CONTENT = {
   }
 };
 
-const SECTIONS = ["overview", "blocklist", "packs", "sites", "focus", "appearance", "family", "activity", "support"];
+const SECTIONS = ["overview", "blocklist", "packs", "sites", "focus", "social", "appearance", "family", "activity", "support"];
 
 const analytics = window.CancelItAnalytics || { track: () => null, summarizeSettings: () => ({}) };
 
@@ -204,7 +222,22 @@ const dom = {
   lockNowButton: document.getElementById("lock-now-button"),
   analyticsToggle: document.getElementById("analytics-toggle"),
   imageDetectionToggle: document.getElementById("image-detection-toggle"),
+  grayscaleToggle: document.getElementById("grayscale-toggle"),
+  grayscaleSiteList: document.getElementById("grayscale-site-list"),
+  grayscaleSitesEmpty: document.getElementById("grayscale-sites-empty"),
+  grayscaleSiteDomain: document.getElementById("grayscale-site-domain"),
+  addGrayscaleSiteButton: document.getElementById("add-grayscale-site-button"),
+  grayscaleResetButton: document.getElementById("grayscale-reset-button"),
+  youtubeSearchOnlyToggle: document.getElementById("youtube-search-only-toggle"),
+  shortVideoToggles: {
+    youtubeShorts: document.getElementById("hide-yt-shorts-toggle"),
+    instagramReels: document.getElementById("hide-ig-reels-toggle"),
+    facebookReels: document.getElementById("hide-fb-reels-toggle")
+  },
   imageDetectionStatus: document.getElementById("image-detection-status"),
+  focusAccessNote: document.getElementById("focus-access-note"),
+  focusAccessText: document.getElementById("focus-access-text"),
+  focusAccessButton: document.getElementById("focus-access-button"),
   resetStatsButton: document.getElementById("reset-stats-button"),
   statToday: document.getElementById("stat-today"),
   statWeek: document.getElementById("stat-week"),
@@ -937,9 +970,57 @@ function resetFocusEndPinPrompt() {
   dom.focusEndPinError.classList.add("hidden");
 }
 
+// Chrome lets people limit an extension's "Site access" to on-click or specific sites. A focus
+// session can't block a site the extension is not allowed to run on, and nothing on the page
+// says so, so check and offer to ask for the access back.
+function focusSiteOrigin(site) {
+  const wildcardOk = site.includes(".") && !/^\d+(\.\d+){3}$/.test(site);
+  return wildcardOk ? `*://*.${site}/*` : `*://${site}/*`;
+}
+
+let focusAccessCheckId = 0;
+async function renderFocusAccessNote() {
+  const checkId = ++focusAccessCheckId;
+  const sites = settingsState.focusMode?.blockedSites || [];
+  const missing = [];
+
+  if (chrome.permissions?.contains) {
+    for (const site of sites) {
+      try {
+        if (!(await chrome.permissions.contains({ origins: [focusSiteOrigin(site)] }))) {
+          missing.push(site);
+        }
+      } catch (_error) {
+        // Not a pattern Chrome can express (odd hostname): nothing useful to warn about.
+      }
+    }
+  }
+
+  if (checkId !== focusAccessCheckId) {
+    return; // a newer render superseded this one
+  }
+
+  dom.focusAccessNote.classList.toggle("hidden", missing.length === 0);
+  dom.focusAccessNote.dataset.sites = missing.join(",");
+  dom.focusAccessText.textContent = missing.length
+    ? `Chrome is limiting Cancel It's access to ${missing.join(", ")}, so a focus session can't block ${missing.length === 1 ? "it" : "them"}. Allow access here, or in chrome://extensions → Cancel It → Details → Site access → "On all sites".`
+    : "";
+}
+
+dom.focusAccessButton.addEventListener("click", async () => {
+  const sites = (dom.focusAccessNote.dataset.sites || "").split(",").filter(Boolean);
+  try {
+    await chrome.permissions.request({ origins: sites.map(focusSiteOrigin) });
+  } catch (_error) {
+    // Denied or unsupported; the note stays so the manual route is still visible.
+  }
+  renderFocusAccessNote();
+});
+
 function renderFocusSection() {
   renderFocusSites();
   renderFocusDurationOptions();
+  renderFocusAccessNote();
 
   const sessionActive = isFocusSessionActive();
   dom.focusStartCard.classList.toggle("hidden", sessionActive);
@@ -1117,8 +1198,73 @@ function renderImageDetection() {
   dom.imageDetectionStatus.classList.toggle("warn", imageDetectionRuntime.state === "unsupported");
 }
 
+// A missing list means "the defaults" (so new defaults reach existing users); an empty list is
+// the user's own choice and must stay empty.
+function getGrayscaleSites() {
+  const sites = settingsState.socialGrayscale?.sites;
+  return Array.isArray(sites) ? sites : DEFAULT_GRAYSCALE_SITES;
+}
+
+// Social media switches save straight away, like Focus mode and the main on/off switch: a switch
+// that does nothing until you find a Save button reads as broken. Each write touches only its own
+// keys on a freshly read copy, and writes run one at a time so quick flips can't undo each other.
+let socialSaveChain = Promise.resolve();
+function persistSocial(patch) {
+  Object.assign(settingsState, patch);
+  renderSocialSection();
+  socialSaveChain = socialSaveChain.then(() => new Promise((resolve) => {
+    chrome.storage.sync.get([STORAGE_KEY], (result) => {
+      chrome.storage.sync.set({ [STORAGE_KEY]: { ...(result[STORAGE_KEY] || {}), ...patch } }, () => {
+        if (chrome.runtime.lastError) {
+          showToast("Couldn't save that change. Try again.", true);
+        } else {
+          showToast("Saved");
+        }
+        resolve();
+      });
+    });
+  }));
+}
+
+function setGrayscaleSites(sites) {
+  const socialGrayscale = { enabled: Boolean(settingsState.socialGrayscale?.enabled) };
+  if (Array.isArray(sites)) {
+    socialGrayscale.sites = sites; // no list stored = the default list, so new defaults still arrive
+  }
+  persistSocial({ socialGrayscale });
+}
+
+function renderSocialSection() {
+  dom.grayscaleToggle.setAttribute("aria-checked", String(Boolean(settingsState.socialGrayscale?.enabled)));
+  dom.youtubeSearchOnlyToggle.setAttribute("aria-checked", String(Boolean(settingsState.youtubeSearchOnly?.enabled)));
+  for (const [key, toggle] of Object.entries(dom.shortVideoToggles)) {
+    toggle.setAttribute("aria-checked", String(Boolean(settingsState.shortVideos?.[key])));
+  }
+
+  const sites = getGrayscaleSites();
+  dom.grayscaleSiteList.textContent = "";
+  dom.grayscaleSitesEmpty.classList.toggle("hidden", sites.length > 0);
+  for (const site of sites) {
+    const row = el("div", "list-row");
+    row.appendChild(el("span", "rule-domain", site));
+    const remove = el("button", "link-danger", "Remove");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${site} from black and white sites`);
+    remove.addEventListener("click", () => {
+      setGrayscaleSites(sites.filter((entry) => entry !== site));
+    });
+    row.appendChild(remove);
+    dom.grayscaleSiteList.appendChild(row);
+  }
+
+  const isDefault = sites.length === DEFAULT_GRAYSCALE_SITES.length
+    && DEFAULT_GRAYSCALE_SITES.every((site) => sites.includes(site));
+  dom.grayscaleResetButton.classList.toggle("hidden", isDefault);
+}
+
 function renderAll() {
   renderGlobalStatus();
+  renderSocialSection();
   renderAnalyticsToggle();
   renderImageDetection();
   renderOverviewTiles();
@@ -1152,6 +1298,18 @@ function applySettings(rawSettings) {
   settingsState.imageDetection = {
     ...structuredClone(DEFAULT_SETTINGS.imageDetection),
     ...(settingsState.imageDetection || {})
+  };
+  settingsState.socialGrayscale = {
+    ...structuredClone(DEFAULT_SETTINGS.socialGrayscale),
+    ...(settingsState.socialGrayscale || {})
+  };
+  settingsState.youtubeSearchOnly = {
+    ...structuredClone(DEFAULT_SETTINGS.youtubeSearchOnly),
+    ...(settingsState.youtubeSearchOnly || {})
+  };
+  settingsState.shortVideos = {
+    ...structuredClone(DEFAULT_SETTINGS.shortVideos),
+    ...(settingsState.shortVideos || {})
   };
   settingsState.focusMode = {
     ...structuredClone(DEFAULT_SETTINGS.focusMode),
@@ -1207,6 +1365,17 @@ function collectSettings() {
     siteRules: settingsState.siteRules,
     shareUsageStats: Boolean(settingsState.shareUsageStats),
     imageDetection: { enabled: Boolean(settingsState.imageDetection?.enabled) },
+    socialGrayscale: {
+      enabled: Boolean(settingsState.socialGrayscale?.enabled),
+      // Only store a list once the user has changed it, so the defaults can grow later.
+      ...(Array.isArray(settingsState.socialGrayscale?.sites) ? { sites: settingsState.socialGrayscale.sites } : {})
+    },
+    youtubeSearchOnly: { enabled: Boolean(settingsState.youtubeSearchOnly?.enabled) },
+    shortVideos: {
+      youtubeShorts: Boolean(settingsState.shortVideos?.youtubeShorts),
+      instagramReels: Boolean(settingsState.shortVideos?.instagramReels),
+      facebookReels: Boolean(settingsState.shortVideos?.facebookReels)
+    },
     // Focus mode saves itself immediately (see persistFocusMode) — included
     // here only so a regular Save doesn't overwrite it with a stale copy.
     focusMode: settingsState.focusMode,
@@ -1475,7 +1644,10 @@ function normalizeDomainInput(value) {
   return normalizeTerm(value)
     .toLowerCase()
     .replace(/^https?:\/\//, "")
-    .replace(/\/.*$/, "");
+    .replace(/[/?#].*$/, "")
+    .replace(/:\d+$/, "")
+    // "www.facebook.com" should block facebook.com and m.facebook.com too, not one hostname only.
+    .replace(/^www\./, "");
 }
 
 dom.addFocusSiteButton.addEventListener("click", () => {
@@ -1632,6 +1804,47 @@ for (const input of [dom.pinInput, dom.pinConfirm]) {
 
 dom.lockNowButton.addEventListener("click", () => {
   clearUnlockWindow();
+});
+
+dom.grayscaleToggle.addEventListener("click", () => {
+  const { sites } = settingsState.socialGrayscale || {};
+  persistSocial({
+    socialGrayscale: { enabled: !settingsState.socialGrayscale?.enabled, ...(Array.isArray(sites) ? { sites } : {}) }
+  });
+});
+
+dom.youtubeSearchOnlyToggle.addEventListener("click", () => {
+  persistSocial({ youtubeSearchOnly: { enabled: !settingsState.youtubeSearchOnly?.enabled } });
+});
+
+for (const [key, toggle] of Object.entries(dom.shortVideoToggles)) {
+  toggle.addEventListener("click", () => {
+    persistSocial({ shortVideos: { ...settingsState.shortVideos, [key]: !settingsState.shortVideos?.[key] } });
+  });
+}
+
+dom.addGrayscaleSiteButton.addEventListener("click", () => {
+  const domain = normalizeDomainInput(dom.grayscaleSiteDomain.value);
+  dom.grayscaleSiteDomain.value = "";
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+    return;
+  }
+
+  const sites = getGrayscaleSites();
+  if (!sites.includes(domain)) {
+    setGrayscaleSites([...sites, domain]);
+  }
+});
+
+dom.grayscaleSiteDomain.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    dom.addGrayscaleSiteButton.click();
+  }
+});
+
+dom.grayscaleResetButton.addEventListener("click", () => {
+  setGrayscaleSites(null);
 });
 
 dom.imageDetectionToggle.addEventListener("click", () => {

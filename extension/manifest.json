@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Cancel It",
-  "version": "0.3.0",
-  "description": "Hide, blur, or replace blocked names and topics on any site, and optionally blur explicit images. Everything stays on your device.",
+  "version": "0.4.0",
+  "description": "Filter names, topics and explicit images, block distracting sites, and calm social media. Everything stays on your device.",
   "icons": {
     "16": "assets/brand/icon-16.png",
     "32": "assets/brand/icon-32.png",

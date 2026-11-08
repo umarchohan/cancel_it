@@ -175,6 +175,13 @@
       blocked_term_count: (settingsState.blockedTerms || []).length,
       temp_mute_count: (settingsState.tempMutedTerms || []).length,
       image_detection_enabled: Boolean(settingsState.imageDetection?.enabled),
+      social_grayscale_enabled: Boolean(settingsState.socialGrayscale?.enabled),
+      // A count only: the list itself is hostnames, which analytics must never contain.
+      social_grayscale_site_count: Array.isArray(settingsState.socialGrayscale?.sites) ? settingsState.socialGrayscale.sites.length : -1,
+      youtube_search_only_enabled: Boolean(settingsState.youtubeSearchOnly?.enabled),
+      hide_youtube_shorts: Boolean(settingsState.shortVideos?.youtubeShorts),
+      hide_instagram_reels: Boolean(settingsState.shortVideos?.instagramReels),
+      hide_facebook_reels: Boolean(settingsState.shortVideos?.facebookReels),
       share_usage_stats: Boolean(settingsState.shareUsageStats)
     };
   }

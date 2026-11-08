@@ -20,7 +20,10 @@ npx @puppeteer/browsers install chrome@stable      # prints the binary path
 ```sh
 export PUPPETEER_CORE_PATH=/tmp/cancel-it-e2e/node_modules/puppeteer-core
 export CHROME_FOR_TESTING="<path printed above>/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
-node qa-fixtures/e2e/suite.js        # ~3 min, 69 checks: hold/blur/no-reveal/src swap/fail-open/burst/data: URLs/off switches/options/popup
+node qa-fixtures/e2e/suite.js        # ~3 min, 88 checks: hold/blur/no-reveal/src swap/fail-open/burst/data: URLs/off switches/options/popup
+node qa-fixtures/e2e/social-live.js  # ~4 min, LIVE sites (internet): black & white, YouTube search-only, Shorts/Reels
+                                     # breaks when YouTube/Instagram/Facebook change their pages; logged out only
+node qa-fixtures/e2e/stale-tab.js    # ~20s: tab open across an extension reload gets repaired (helper extension does the reload)
 node qa-fixtures/e2e/hold.js         # ~15s: image-hold.css+js alone, no extension (the never-stuck-hidden guarantee)
 node qa-fixtures/e2e/lifecycle.js    # ~2 min: no-GPU device, 30s worker idle death, extension vanishing
 ```

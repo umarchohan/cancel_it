@@ -274,6 +274,7 @@ document.addEventListener('click', (e) => { if (e.target.closest && e.target.clo
   const ot = await o.evaluate(() => ({ present: Boolean(document.getElementById('image-detection-toggle')), checked: document.getElementById('image-detection-toggle').getAttribute('aria-checked'), statusHidden: document.getElementById('image-detection-status').classList.contains('hidden') }));
   check('S8 options: toggle present, off, status hidden', ot.present && ot.checked === 'false' && ot.statusHidden, JSON.stringify(ot));
   await o.click('#image-detection-toggle'); await sleep(300);
+  check('S8 options: no "limited site access" warning when Cancel It has access', await o.evaluate(() => document.getElementById('focus-access-note').classList.contains('hidden')));
   check('S8 options: toggling shows the unsaved-changes bar', await o.evaluate(() => !document.getElementById('save-bar').classList.contains('hidden')));
   await o.click('#save-button');
   const saved = await waitFor(async () => (await ctx.evaluate(async () => (await chrome.storage.sync.get('cancelItSettings')).cancelItSettings.imageDetection?.enabled)) === true, 8000);
@@ -288,6 +289,53 @@ document.addEventListener('click', (e) => { if (e.target.closest && e.target.clo
   check('S8 popup renders without errors', await pp.evaluate(() => Boolean(document.getElementById('popup-toggle'))) && perr.length === 0, perr.join('|'));
   check('S8 no options-page errors', oerr.length === 0, oerr.join(' | '));
   await o.close(); await pp.close();
+
+  console.log('\n== S13 black & white (local: localhost in the site list)');
+  const FIRST_FRAME = () => {
+    window.__ff = null;
+    const go = () => requestAnimationFrame(() => { window.__ff = getComputedStyle(document.documentElement).filter; });
+    if (document.documentElement) go(); else new MutationObserver((_r, o) => { if (document.documentElement) { o.disconnect(); go(); } }).observe(document, { childList: true });
+  };
+  const rootFilter = (pg) => pg.evaluate(() => getComputedStyle(document.documentElement).filter);
+  await L.setSettings(ctx, { enabled: true, socialGrayscale: { enabled: true, sites: ['localhost'] } });
+  await sleep(1500);
+  const reg = await ctx.evaluate(async () => (await chrome.scripting.getRegisteredContentScripts({ ids: ['cancel-it-grayscale'] })).map((r) => r.matches));
+  check('S13 early black & white stylesheet registered for the list', JSON.stringify(reg) === JSON.stringify([['*://localhost/*']]), JSON.stringify(reg));
+  p = await browser.newPage(); await p.evaluateOnNewDocument(FIRST_FRAME);
+  await p.goto('http://localhost:8801/main', { waitUntil: 'load' }); await sleep(800);
+  check('S13 listed site is black & white in its very first frame', /grayscale\(1\)/.test(await p.evaluate(() => window.__ff)) && /grayscale\(1\)/.test(await rootFilter(p)));
+  const p2 = await browser.newPage(); await p2.goto('http://127.0.0.1:8801/main', { waitUntil: 'load' }); await sleep(800);
+  check('S13 a site not in the list keeps its colour', (await rootFilter(p2)) === 'none');
+  await p2.close();
+  await L.setSettings(ctx, { socialGrayscale: { enabled: false, sites: ['localhost'] } }); await sleep(1200);
+  check('S13 switched off while open: colour comes back (early stylesheet released)', (await rootFilter(p)) === 'none' && await p.evaluate(() => document.documentElement.hasAttribute('data-cancel-it-color')));
+  const reg2 = await ctx.evaluate(async () => (await chrome.scripting.getRegisteredContentScripts({ ids: ['cancel-it-grayscale'] })).length);
+  await p.reload({ waitUntil: 'load' }); await sleep(800);
+  check('S13 switched off: stylesheet unregistered, reload is in colour, no stray attributes', reg2 === 0 && (await rootFilter(p)) === 'none' && !(await p.evaluate(() => document.documentElement.hasAttribute('data-cancel-it-color'))));
+  await L.setSettings(ctx, { socialGrayscale: { enabled: true, sites: ['localhost'] } }); await sleep(1200);
+  check('S13 switched on while open: the open page turns black & white', /grayscale\(1\)/.test(await rootFilter(p)));
+  await L.setSettings(ctx, { enabled: false }); await sleep(1200);
+  check('S13 main Filtering switch off: colour comes back', (await rootFilter(p)) === 'none');
+  await L.setSettings(ctx, { enabled: true, socialGrayscale: { enabled: false, sites: ['localhost'] } }); await sleep(800);
+  await p.reload({ waitUntil: 'load' }); await sleep(600);
+
+  console.log('\n== S14 the settings-page switches (real clicks, no Save button)');
+  const so = await browser.newPage(); await so.setViewport({ width: 1200, height: 1000 });
+  await so.goto(`chrome-extension://${extId}/options.html#social`, { waitUntil: 'load' }); await sleep(800);
+  const storedGray = () => ctx.evaluate(async () => (await chrome.storage.sync.get('cancelItSettings')).cancelItSettings.socialGrayscale);
+  for (const [label, on] of [['on', true], ['off', false], ['on again', true], ['off again', false]]) {
+    await so.bringToFront(); await so.click('#grayscale-toggle'); await sleep(1400);
+    const st = await storedGray();
+    check(`S14 one click ${label}: saved at once, no unsaved-changes bar`, st.enabled === on && await so.evaluate(() => document.getElementById('save-bar').classList.contains('hidden')), JSON.stringify(st));
+    check(`S14 one click ${label}: the open page follows`, on ? /grayscale\(1\)/.test(await rootFilter(p)) : (await rootFilter(p)) === 'none', await rootFilter(p));
+  }
+  check('S14 a custom site list survives the switch', JSON.stringify((await storedGray()).sites) === JSON.stringify(['localhost']));
+  await so.click('#hide-yt-shorts-toggle'); await so.click('#hide-ig-reels-toggle'); await so.click('#youtube-search-only-toggle'); await so.click('#grayscale-toggle'); await sleep(1800);
+  const quick = await ctx.evaluate(async () => { const s = (await chrome.storage.sync.get('cancelItSettings')).cancelItSettings; return { g: s.socialGrayscale.enabled, y: s.youtubeSearchOnly.enabled, sv: s.shortVideos, terms: s.blockedTerms }; });
+  check('S14 four quick clicks in a row all stick', quick.g === true && quick.y === true && quick.sv.youtubeShorts && quick.sv.instagramReels && !quick.sv.facebookReels, JSON.stringify(quick));
+  check('S14 instant saves leave other settings alone', Array.isArray(quick.terms));
+  await so.close(); await p.close();
+  await L.setSettings(ctx, { enabled: true, socialGrayscale: { enabled: false }, youtubeSearchOnly: { enabled: false }, shortVideos: { youtubeShorts: false, instagramReels: false, facebookReels: false } }); await sleep(600);
 
   const failed = L.summarize();
   await browser.close(); servers.forEach((s) => s.close());

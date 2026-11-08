@@ -14,7 +14,8 @@ if (!CHROME) {
 }
 const EXT = path.resolve(process.env.EXT_DIR || path.join(__dirname, '../../extension'));
 // Unpacked extensions get an id derived from their path; needed when no service worker target is attached.
-const EXT_ID = [...crypto.createHash('sha256').update(EXT).digest('hex').slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
+const idForPath = (p) => [...crypto.createHash('sha256').update(p).digest('hex').slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
+const EXT_ID = idForPath(EXT);
 const GPU = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -183,6 +184,6 @@ async function openPage(browser, urlPath, probe = true) {
 }
 
 module.exports = {
-  puppeteer, CHROME, fs, path, EXT, EXT_ID, GPU, NEUTRAL, sleep, check, summarize, results, hits, resetHits, loadFlagged, startServers,
+  puppeteer, CHROME, fs, path, os, EXT, EXT_ID, idForPath, GPU, NEUTRAL, sleep, check, summarize, results, hits, resetHits, loadFlagged, startServers,
   launch, waitFor, setSettings, runtimeInfo, waitReady, openOptions, PROBE, imageState, openPage
 };
